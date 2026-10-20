@@ -35,6 +35,15 @@ const server = createServer(async (request, response) => {
     }
   }
 
+  if (request.method === 'POST' && request.url === '/api/staff/adjustments') {
+    try {
+      const { memberId, accessCode, requestId, amount, reason } = await readJson(request);
+      return sendJson(response, 200, service.recordCreditAdjustment({ memberId, accessCode, requestId, amount, reason }));
+    } catch (error) {
+      return sendJson(response, 400, { error: error.message });
+    }
+  }
+
   if (request.method === 'POST' && request.url === '/api/rewards/reveal') {
     try {
       const { rewardId } = await readJson(request);
@@ -58,6 +67,15 @@ const server = createServer(async (request, response) => {
     try {
       const { accessCode, token, requestId } = await readJson(request);
       return sendJson(response, 200, service.redeemReward({ accessCode, token, requestId }));
+    } catch (error) {
+      return sendJson(response, 400, { error: error.message });
+    }
+  }
+
+  if (request.method === 'POST' && request.url === '/api/staff/redemption-corrections') {
+    try {
+      const { rewardId, accessCode, requestId, reason } = await readJson(request);
+      return sendJson(response, 200, service.correctRedemption({ rewardId, accessCode, requestId, reason }));
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
     }

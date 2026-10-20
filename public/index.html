@@ -28,7 +28,7 @@
     button { border:0; border-radius:2px; padding:13px 16px; background:var(--rust); color:#fff; font:700 14px ui-monospace,monospace; cursor:pointer; }
     button.secondary { background:transparent; color:inherit; border:2px solid currentColor; }
     button:disabled { cursor:not-allowed; opacity:.5; }
-    input { width:100%; padding:13px; border:2px solid currentColor; border-radius:2px; background:#fffaf0; color:var(--ink); font:16px ui-monospace,monospace; }
+    input, select { width:100%; padding:13px; border:2px solid currentColor; border-radius:2px; background:#fffaf0; color:var(--ink); font:16px ui-monospace,monospace; }
     .qr-card { display:flex; align-items:center; gap:18px; margin-top:12px; padding:14px; border:1px solid currentColor; }
     .qr-image { width:150px; height:150px; background:#fff; }
     .scanner { width:100%; margin-top:14px; background:#171615; }
@@ -60,6 +60,14 @@
     let redemptionRequestId;
     let cameraStream;
     let scanActive = false;
+    let adjustmentAmount = '';
+    let adjustmentReason = '';
+    let correctionRewardId = '';
+    let correctionReason = '';
+    let isAdjusting = false;
+    let adjustmentRequestId;
+    let isCorrecting = false;
+    let correctionRequestId;
 
     function creditsMarkup(view) {
       return Array.from({ length:8 }, (_, index) => `<span style="display:inline-grid;place-items:center;width:30px;height:30px;margin:12px 5px 0 0;border:2px solid currentColor;border-radius:50%;background:${index < view.drinkCredits ? '#e3a43b' : 'transparent'}">${index < view.drinkCredits ? '✓' : index + 1}</span>`).join('');
@@ -90,6 +98,8 @@
           <div class="action"><button type="button" data-record ${isRecording ? 'disabled' : ''}>${isRecording ? 'Saving…' : 'Record paid drink'}</button><button type="button" data-preview>Preview Redemption</button><button class="secondary" type="button" data-camera>Scan with camera</button><button class="secondary" type="button" data-mode="member">Back to card</button></div>
           <video id="scanner" class="scanner" playsinline hidden></video>
           ${staffPreview ? `<div class="reward" style="margin-top:18px"><div><strong>Redeem one free drink for ${esc(staffPreview.member.name)}?</strong><br><small>${esc(staffPreview.reward.kind)} · expires ${new Date(staffPreview.expiresAt).toLocaleTimeString()}</small></div><button type="button" data-confirm ${isConfirming ? 'disabled' : ''}>${isConfirming ? 'Confirming…' : 'Confirm Redemption'}</button></div>` : ''}
+          <div class="staff-panel"><div class="eyebrow">Corrections</div><label class="eyebrow" for="adjustment-amount" style="display:block;margin-top:14px">Credit Adjustment (+/-)</label><input id="adjustment-amount" type="number" step="1" value="${esc(adjustmentAmount)}" placeholder="Example: 1 or -1"><label class="eyebrow" for="adjustment-reason" style="display:block;margin-top:12px">Adjustment reason</label><input id="adjustment-reason" type="text" value="${esc(adjustmentReason)}" placeholder="Explain the correction"><button type="button" data-adjust ${isAdjusting ? 'disabled' : ''} style="margin-top:12px">${isAdjusting ? 'Saving…' : 'Apply Credit Adjustment'}</button>
+          <label class="eyebrow" for="correction-reward-id" style="display:block;margin-top:22px">Redeemed Reward</label><select id="correction-reward-id" ${isCorrecting ? 'disabled' : ''}>${view.redeemedRewards.length ? view.redeemedRewards.map(item => `<option value="${esc(item.id)}" ${item.id === correctionRewardId ? 'selected' : ''}>${esc(item.kind)} · ${esc(item.id)}</option>`).join('') : '<option value="">No redeemed rewards</option>'}</select><label class="eyebrow" for="correction-reason" style="display:block;margin-top:12px">Redemption correction reason</label><input id="correction-reason" type="text" value="${esc(correctionReason)}" placeholder="Explain the mistaken redemption"><button type="button" data-correct ${isCorrecting || !view.redeemedRewards.length ? 'disabled' : ''} style="margin-top:12px">${isCorrecting ? 'Saving…' : 'Restore Redeemed Reward'}</button></div>
           <p class="message" role="status">${esc(message)}</p>
         </div>
         <div class="activity"><div class="eyebrow">Recent activity · ${view.lifetimeDrinkCredits} lifetime credits</div>${view.recentActivity.map(item => `<p>${esc(item.label)} · ${esc(item.actor)}</p>`).join('')}</div>`;
@@ -104,6 +114,8 @@
       document.querySelector('[data-preview]')?.addEventListener('click', previewRedemption);
       document.querySelector('[data-confirm]')?.addEventListener('click', confirmRedemption);
       document.querySelector('[data-camera]')?.addEventListener('click', scanWithCamera);
+      document.querySelector('[data-adjust]')?.addEventListener('click', applyCreditAdjustment);
+      document.querySelector('[data-correct]')?.addEventListener('click', correctRedemption);
     }
 
     async function revealReward() {
@@ -201,6 +213,50 @@
       cameraStream = undefined;
       const video = document.querySelector('#scanner');
       if (video) { video.hidden = true; video.srcObject = null; }
+    }
+
+    async function applyCreditAdjustment() {
+      if (isAdjusting) return;
+      staffAccessCode = document.querySelector('#access-code').value;
+      adjustmentAmount = document.querySelector('#adjustment-amount').value;
+      adjustmentReason = document.querySelector('#adjustment-reason').value;
+      adjustmentRequestId ??= crypto.randomUUID();
+      isAdjusting = true;
+      render(currentView);
+      try {
+        const response = await fetch('/api/staff/adjustments', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ memberId:'patrick', accessCode:staffAccessCode, requestId:adjustmentRequestId, amount:Number(adjustmentAmount), reason:adjustmentReason }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The Credit Adjustment could not be saved.');
+        currentView = result;
+        adjustmentAmount = '';
+        adjustmentReason = '';
+        adjustmentRequestId = undefined;
+        message = 'Credit Adjustment recorded in the ledger.';
+      } catch (error) { message = error.message; }
+      isAdjusting = false;
+      render(currentView);
+    }
+
+    async function correctRedemption() {
+      if (isCorrecting) return;
+      staffAccessCode = document.querySelector('#access-code').value;
+      correctionRewardId = document.querySelector('#correction-reward-id').value.trim();
+      correctionReason = document.querySelector('#correction-reason').value;
+      correctionRequestId ??= crypto.randomUUID();
+      isCorrecting = true;
+      render(currentView);
+      try {
+        const response = await fetch('/api/staff/redemption-corrections', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ accessCode:staffAccessCode, rewardId:correctionRewardId, requestId:correctionRequestId, reason:correctionReason }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The Redemption correction could not be saved.');
+        currentView = result;
+        correctionRewardId = '';
+        correctionReason = '';
+        correctionRequestId = undefined;
+        message = 'Redemption corrected. The original activity remains in history.';
+      } catch (error) { message = error.message; }
+      isCorrecting = false;
+      render(currentView);
     }
 
     async function recordPaidDrink() {

@@ -19,6 +19,7 @@ test('Patrick opens with one gift reward and no progress toward the next reward'
         status: 'available'
       }
     ],
+    redeemedRewards: [],
     lifetimeDrinkCredits: 0,
     recentActivity: [
       {
@@ -165,4 +166,75 @@ test('an invalid Reward QR cannot be previewed', () => {
   const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
 
   assert.throws(() => service.previewRedemption({ accessCode: 'espresso', token: 'not-a-real-token' }), /Invalid Reward QR/);
+});
+
+test('Staff can append a labeled positive Credit Adjustment and retries stay idempotent', () => {
+  const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
+
+  const adjusted = service.recordCreditAdjustment({
+    memberId: 'patrick',
+    accessCode: 'espresso',
+    requestId: 'adjustment-001',
+    amount: 2,
+    reason: 'Missed drinks from paper card'
+  });
+
+  assert.equal(adjusted.lifetimeDrinkCredits, 2);
+  assert.equal(adjusted.drinkCredits, 2);
+  assert.deepEqual(adjusted.recentActivity[0], {
+    type: 'Credit Adjustment',
+    label: 'Credit adjustment (+2): Missed drinks from paper card',
+    actor: 'Staff'
+  });
+  assert.deepEqual(service.recordCreditAdjustment({
+    memberId: 'patrick',
+    accessCode: 'espresso',
+    requestId: 'adjustment-001',
+    amount: 2,
+    reason: 'Missed drinks from paper card'
+  }), adjusted);
+});
+
+test('Staff can subtract a labeled Credit Adjustment without deleting the original purchase', () => {
+  const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
+  service.recordQualifyingDrink({ memberId: 'patrick', accessCode: 'espresso', requestId: 'purchase-for-correction' });
+
+  const adjusted = service.recordCreditAdjustment({
+    memberId: 'patrick',
+    accessCode: 'espresso',
+    requestId: 'adjustment-002',
+    amount: -1,
+    reason: 'Duplicate paper entry'
+  });
+
+  assert.equal(adjusted.lifetimeDrinkCredits, 0);
+  assert.equal(adjusted.recentActivity[0].label, 'Credit adjustment (-1): Duplicate paper entry');
+  assert.equal(adjusted.recentActivity.some(item => item.label === 'Paid drink'), true);
+});
+
+test('Staff can correct a mistaken Redemption while preserving the original history', () => {
+  const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
+  const issued = service.revealReward({ memberId: 'patrick', rewardId: 'welcome-reward' });
+  service.redeemReward({ accessCode: 'espresso', token: issued.token, requestId: 'redemption-for-correction' });
+
+  const corrected = service.correctRedemption({
+    accessCode: 'espresso',
+    rewardId: 'welcome-reward',
+    requestId: 'correction-001',
+    reason: 'Wrong reward selected at the counter'
+  });
+
+  assert.equal(corrected.availableRewards.length, 1);
+  assert.deepEqual(corrected.recentActivity[0], {
+    type: 'Redemption Correction',
+    label: 'Redemption correction: Wrong reward selected at the counter',
+    actor: 'Staff'
+  });
+  assert.equal(corrected.recentActivity.some(item => item.type === 'Redemption'), true);
+  assert.deepEqual(service.correctRedemption({
+    accessCode: 'espresso',
+    rewardId: 'welcome-reward',
+    requestId: 'correction-001',
+    reason: 'Wrong reward selected at the counter'
+  }), corrected);
 });
