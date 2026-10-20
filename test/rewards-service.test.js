@@ -168,6 +168,35 @@ test('an invalid Reward QR cannot be previewed', () => {
   assert.throws(() => service.previewRedemption({ accessCode: 'espresso', token: 'not-a-real-token' }), /Invalid Reward QR/);
 });
 
+test('Staff can scan Patrick\'s permanent card QR to add one drink', () => {
+  const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
+  const cardToken = service.getMemberCardToken('patrick');
+
+  const scanned = service.recordMemberScan({
+    accessCode: 'espresso',
+    cardToken,
+    requestId: 'scan-001'
+  });
+
+  assert.equal(scanned.lifetimeDrinkCredits, 1);
+  assert.equal(scanned.drinkCredits, 1);
+  assert.deepEqual(service.recordMemberScan({
+    accessCode: 'espresso',
+    cardToken,
+    requestId: 'scan-001'
+  }), scanned);
+});
+
+test('an unknown card QR cannot add a drink', () => {
+  const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
+
+  assert.throws(() => service.recordMemberScan({
+    accessCode: 'espresso',
+    cardToken: 'not-a-member-card',
+    requestId: 'scan-002'
+  }), /Invalid Rewards Card QR/);
+});
+
 test('Staff can append a labeled positive Credit Adjustment and retries stay idempotent', () => {
   const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
 

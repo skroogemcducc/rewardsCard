@@ -17,13 +17,31 @@ function sendJson(response, status, body) {
 
 async function readJson(request) {
   let body = '';
-  for await (const chunk of request) body += chunk;
+  let size = 0;
+  for await (const chunk of request) {
+    size += Buffer.byteLength(chunk);
+    if (size > 100_000) throw new Error('Request body is too large');
+    body += chunk;
+  }
   return JSON.parse(body || '{}');
 }
 
 const server = createServer(async (request, response) => {
   if (request.method === 'GET' && request.url === '/api/members/patrick') {
-    return sendJson(response, 200, service.getMemberView('patrick'));
+    const view = service.getMemberView('patrick');
+    return sendJson(response, 200, {
+      ...view,
+      cardQrDataUrl: await QRCode.toDataURL(service.getMemberCardToken('patrick'), { margin: 1, width: 280 })
+    });
+  }
+
+  if (request.method === 'POST' && request.url === '/api/staff/scan') {
+    try {
+      const { accessCode, cardToken, requestId } = await readJson(request);
+      return sendJson(response, 200, service.recordMemberScan({ accessCode, cardToken, requestId }));
+    } catch (error) {
+      return sendJson(response, 400, { error: error.message });
+    }
   }
 
   if (request.method === 'POST' && request.url === '/api/staff/credits') {
@@ -81,7 +99,7 @@ const server = createServer(async (request, response) => {
     }
   }
 
-  if (request.method === 'GET' && (request.url === '/' || request.url === '/index.html')) {
+  if (request.method === 'GET' && (request.url === '/' || request.url === '/staff' || request.url === '/index.html')) {
     const page = await readFile(join(root, 'index.html'));
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     return response.end(page);

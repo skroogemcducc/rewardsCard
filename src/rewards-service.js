@@ -13,6 +13,10 @@ function createSchema(database) {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS member_qr_tokens (
+      member_id TEXT PRIMARY KEY REFERENCES members(id),
+      token_value TEXT NOT NULL UNIQUE
+    );
     CREATE TABLE IF NOT EXISTS rewards (
       id TEXT PRIMARY KEY,
       member_id TEXT NOT NULL REFERENCES members(id),
@@ -80,6 +84,10 @@ export function createRewardsService({ database = ':memory:', staffAccessCode = 
   seedPatrick(db);
   for (const member of additionalMembers) {
     db.prepare('INSERT OR IGNORE INTO members (id, name) VALUES (?, ?)').run(member.id, member.name);
+  }
+  for (const member of db.prepare('SELECT id FROM members').all()) {
+    db.prepare('INSERT OR IGNORE INTO member_qr_tokens (member_id, token_value) VALUES (?, ?)')
+      .run(member.id, randomBytes(24).toString('base64url'));
   }
 
   function getMemberView(memberId) {
@@ -158,8 +166,22 @@ export function createRewardsService({ database = ':memory:', staffAccessCode = 
     return tokenRecord;
   }
 
-  return {
+  const api = {
     getMemberView,
+
+    getMemberCardToken(memberId) {
+      getMemberView(memberId);
+      return db.prepare('SELECT token_value FROM member_qr_tokens WHERE member_id = ?').get(memberId).token_value;
+    },
+
+    recordMemberScan({ accessCode, cardToken, requestId }) {
+      if (accessCode !== staffAccessCode) throw new Error('Invalid Staff Access Code');
+      const member = db.prepare(`
+        SELECT member_id FROM member_qr_tokens WHERE token_value = ?
+      `).get(cardToken);
+      if (!member) throw new Error('Invalid Rewards Card QR');
+      return api.recordQualifyingDrink({ memberId: member.member_id, accessCode, requestId });
+    },
 
     recordQualifyingDrink({ memberId, accessCode, requestId, drinkCount = 1 }) {
       if (accessCode !== staffAccessCode) throw new Error('Invalid Staff Access Code');
@@ -361,4 +383,5 @@ export function createRewardsService({ database = ':memory:', staffAccessCode = 
       return getMemberView(reward.member_id);
     }
   };
+  return api;
 }

@@ -16,299 +16,184 @@
     .ticket::before { top:-1px; }.ticket::after { bottom:-1px; transform:rotate(180deg); }
     .mast { display:flex; justify-content:space-between; gap:12px; border-bottom:2px dashed currentColor; padding-bottom:18px; }
     .eyebrow { font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
-    h1 { margin:0; max-width:430px; font:700 clamp(42px,11vw,70px)/.88 Georgia, serif; letter-spacing:-.07em; }
-    h2 { margin:14px 0 0; font:700 36px/.95 Georgia, serif; letter-spacing:-.05em; }
-    .status { display:flex; justify-content:space-between; align-items:end; gap:24px; padding:34px 0; border-bottom:2px dashed currentColor; }
-    .status p { margin:14px 0 0; color:var(--muted); }
-    .qr { width:128px; aspect-ratio:1; display:grid; place-items:center; flex:none; border:10px solid #fff; background:repeating-conic-gradient(#222 0 25%,#fff 0 50%) 50%/16px 16px; color:#222; font-size:11px; font-weight:700; text-align:center; }
-    .wallet { padding:22px 0; border-bottom:2px dashed currentColor; }
-    .reward { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:10px; padding:14px; border:1px solid currentColor; }
-    .reward small { color:var(--muted); }
-    .action { display:flex; flex-wrap:wrap; gap:10px; padding-top:22px; }
-    button { border:0; border-radius:2px; padding:13px 16px; background:var(--rust); color:#fff; font:700 14px ui-monospace,monospace; cursor:pointer; }
+    h1 { margin:0; font:700 clamp(54px,18vw,112px)/.85 Georgia, serif; letter-spacing:-.08em; }
+    h2 { margin:14px 0 0; font:700 38px/.95 Georgia, serif; letter-spacing:-.05em; }
+    .center { text-align:center; }
+    .card-qr { width:min(76vw,280px); margin:28px auto 20px; display:block; border:12px solid #fff; background:#fff; }
+    .tally { padding:28px 0 20px; border-top:2px dashed currentColor; border-bottom:2px dashed currentColor; }
+    .tally p { margin:8px 0 0; color:var(--muted); }
+    .progress { display:flex; gap:7px; justify-content:center; margin-top:20px; }
+    .progress span { width:24px; height:24px; border:2px solid currentColor; border-radius:50%; display:grid; place-items:center; font-size:12px; }
+    .progress span.filled { background:#e3a43b; }
+    .staff-link { display:block; margin-top:24px; color:inherit; text-align:center; }
+    .panel { padding-top:26px; }
+    label { display:block; margin-top:14px; }
+    input { width:100%; padding:13px; border:2px solid currentColor; border-radius:2px; background:#fffaf0; color:var(--ink); font:16px ui-monospace,monospace; }
+    button { border:0; border-radius:2px; padding:14px 16px; background:var(--rust); color:#fff; font:700 14px ui-monospace,monospace; cursor:pointer; }
     button.secondary { background:transparent; color:inherit; border:2px solid currentColor; }
     button:disabled { cursor:not-allowed; opacity:.5; }
-    input, select { width:100%; padding:13px; border:2px solid currentColor; border-radius:2px; background:#fffaf0; color:var(--ink); font:16px ui-monospace,monospace; }
-    .qr-card { display:flex; align-items:center; gap:18px; margin-top:12px; padding:14px; border:1px solid currentColor; }
-    .qr-image { width:150px; height:150px; background:#fff; }
-    .scanner { width:100%; margin-top:14px; background:#171615; }
-    #scanner-canvas { display:none; }
-    .activity { margin-top:24px; padding-top:18px; border-top:2px dashed currentColor; }
-    .activity p { color:var(--muted); }
-    .staff-panel { padding:24px 0 0; }
-    .message { margin:14px 0 0; color:var(--muted); }
-    .error { padding:20px; background:#f5c8bb; color:#4b1f17; }
-    @media (max-width:520px) { .status { display:block; }.qr { margin-top:24px; }.reward { align-items:start; flex-direction:column; } }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+    .scanner { width:100%; margin-top:18px; background:#171615; }
+    .status { margin-top:18px; padding:16px; background:#ead6b7; color:var(--ink); }
+    .status.success { background:#b9dec3; color:#173d28; }
+    .status.error { background:#f5c8bb; color:#4b1f17; }
+    .small { color:var(--muted); font-size:12px; }
+    .history { margin-top:24px; padding-top:18px; border-top:2px dashed currentColor; }
+    .history p { color:var(--muted); margin:8px 0; }
+    @media (max-width:520px) { body { padding:16px 10px 36px; }.ticket { padding:26px 18px; } }
   </style>
 </head>
 <body>
   <main>
     <p class="note">Bend &amp; Brew · Rewards Card</p>
-    <section id="app" class="ticket" aria-live="polite">Loading Patrick's card…</section>
+    <section id="app" class="ticket" aria-live="polite">Loading…</section>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" crossorigin="anonymous"></script>
   <script>
     const app = document.querySelector('#app');
+    const isStaff = location.pathname === '/staff';
     const esc = value => String(value).replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
     let currentView;
-    let mode = 'member';
-    let message = '';
-    let isRecording = false;
-    let revealedReward;
-    let staffPreview;
-    let staffToken = '';
-    let staffAccessCode = '';
-    let isConfirming = false;
-    let redemptionRequestId;
-    let cameraStream;
+    let accessCode = '';
+    let scannerStream;
     let scanActive = false;
-    let adjustmentAmount = '';
-    let adjustmentReason = '';
-    let correctionRewardId = '';
-    let correctionReason = '';
-    let isAdjusting = false;
-    let adjustmentRequestId;
-    let isCorrecting = false;
-    let correctionRequestId;
+    let scanBusy = false;
+    let scanRequestId;
+    let pendingCardToken;
+    let audioContext;
 
-    function creditsMarkup(view) {
-      return Array.from({ length:8 }, (_, index) => `<span style="display:inline-grid;place-items:center;width:30px;height:30px;margin:12px 5px 0 0;border:2px solid currentColor;border-radius:50%;background:${index < view.drinkCredits ? '#e3a43b' : 'transparent'}">${index < view.drinkCredits ? '✓' : index + 1}</span>`).join('');
+    function progressMarkup(view) {
+      return Array.from({ length:8 }, (_, index) => `<span class="${index < view.drinkCredits ? 'filled' : ''}">${index < view.drinkCredits ? '✓' : index + 1}</span>`).join('');
     }
 
     function memberMarkup(view) {
-      const reward = view.availableRewards[0];
-      return `
-        <div class="mast"><strong>BEND &amp; BREW</strong><span>NO. 0042</span></div>
-        <div class="status">
-          <div><div class="eyebrow">${esc(view.member.name)}</div><h1>A little thank-you for Patrick.</h1><p>${view.drinkCredits} / 8 credits to the next one.</p></div>
-          <div class="qr" aria-label="Rewards Card QR">CARD<br>QR</div>
-        </div>
-        <div class="wallet"><div class="eyebrow">Reward Wallet</div>${reward ? `<div class="reward"><div><strong>${esc(reward.kind)}</strong><br><small>No expiration · available now</small></div><button class="secondary" type="button" data-reveal-reward data-reward-id="${esc(reward.id)}">Use reward</button></div>${revealedReward ? `<div class="qr-card"><img class="qr-image" src="${revealedReward.qrDataUrl}" alt="Reward QR for one free drink"><div><strong>Show this to Staff.</strong><br><small>Expires ${new Date(revealedReward.expiresAt).toLocaleTimeString()}.</small><br><small>Single-use reward QR</small></div></div>` : ''}` : '<p>No rewards in the wallet yet.</p>'}</div>
-        <div><div class="eyebrow" style="margin-top:22px">Progress to your next free drink</div><div>${creditsMarkup(view)}</div><p style="color:var(--muted)">${view.creditsToNextReward} credits remaining</p></div>
-        <div class="action"><button type="button" disabled>Show my card</button><button class="secondary" type="button" disabled>View activity</button><button class="secondary" type="button" data-mode="staff">Staff view</button></div>
-        <p class="message" role="status">${esc(message)}</p>
-        <div class="activity"><div class="eyebrow">Recent activity · ${view.lifetimeDrinkCredits} lifetime credits</div>${view.recentActivity.map(item => `<p>${esc(item.label)} · ${esc(item.actor)}</p>`).join('')}</div>`;
+      return `<div class="mast"><strong>BEND &amp; BREW</strong><span>PATRICK'S CARD</span></div>
+        <div class="center"><img class="card-qr" src="${view.cardQrDataUrl}" alt="Patrick's permanent Rewards Card QR"></div>
+        <div class="tally center"><div class="eyebrow">Drinks recorded</div><h1>${view.lifetimeDrinkCredits}</h1><p>${view.creditsToNextReward} more until the next free drink</p><div class="progress" aria-label="${view.drinkCredits} of 8 credits toward the next free drink">${progressMarkup(view)}</div></div>
+        <div class="history"><div class="eyebrow">Latest activity</div>${view.recentActivity.slice(0,3).map(item => `<p>${esc(item.label)} · ${esc(item.actor)}</p>`).join('')}</div>
+        <a class="staff-link" href="/staff">Staff scanner</a>`;
     }
 
     function staffMarkup(view) {
-      return `
-        <div class="mast"><strong>BEND &amp; BREW</strong><span>STAFF</span></div>
-        <div class="status"><div><div class="eyebrow">Staff view</div><h2>Record Patrick's paid drink.</h2><p>Confirm the purchase, then add one Drink Credit.</p></div><div class="qr" aria-label="Staff scan placeholder">SCAN<br>QR</div></div>
-        <div class="staff-panel"><div class="eyebrow">Selected Member</div><p><strong>${esc(view.member.name)}</strong><br><span style="color:var(--muted)">${view.drinkCredits} Drink Credits · ${view.availableRewards.length} Free Drink Reward</span></p>
-          <label class="eyebrow" for="access-code">Staff Access Code</label><input id="access-code" type="password" autocomplete="off" value="${esc(staffAccessCode)}" placeholder="Enter shared code">
-          <label class="eyebrow" for="reward-token" style="display:block;margin-top:18px">Reward QR token or scanned value</label><input id="reward-token" type="text" autocomplete="off" value="${esc(staffToken)}" placeholder="Scan or paste the Reward QR value">
-          <div class="action"><button type="button" data-record ${isRecording ? 'disabled' : ''}>${isRecording ? 'Saving…' : 'Record paid drink'}</button><button type="button" data-preview>Preview Redemption</button><button class="secondary" type="button" data-camera>Scan with camera</button><button class="secondary" type="button" data-mode="member">Back to card</button></div>
-          <video id="scanner" class="scanner" playsinline hidden></video><canvas id="scanner-canvas"></canvas>
-          ${staffPreview ? `<div class="reward" style="margin-top:18px"><div><strong>Redeem one free drink for ${esc(staffPreview.member.name)}?</strong><br><small>${esc(staffPreview.reward.kind)} · expires ${new Date(staffPreview.expiresAt).toLocaleTimeString()}</small></div><button type="button" data-confirm ${isConfirming ? 'disabled' : ''}>${isConfirming ? 'Confirming…' : 'Confirm Redemption'}</button></div>` : ''}
-          <div class="staff-panel"><div class="eyebrow">Corrections</div><label class="eyebrow" for="adjustment-amount" style="display:block;margin-top:14px">Credit Adjustment (+/-)</label><input id="adjustment-amount" type="number" step="1" value="${esc(adjustmentAmount)}" placeholder="Example: 1 or -1"><label class="eyebrow" for="adjustment-reason" style="display:block;margin-top:12px">Adjustment reason</label><input id="adjustment-reason" type="text" value="${esc(adjustmentReason)}" placeholder="Explain the correction"><button type="button" data-adjust ${isAdjusting ? 'disabled' : ''} style="margin-top:12px">${isAdjusting ? 'Saving…' : 'Apply Credit Adjustment'}</button>
-          <label class="eyebrow" for="correction-reward-id" style="display:block;margin-top:22px">Redeemed Reward</label><select id="correction-reward-id" ${isCorrecting ? 'disabled' : ''}>${view.redeemedRewards.length ? view.redeemedRewards.map(item => `<option value="${esc(item.id)}" ${item.id === correctionRewardId ? 'selected' : ''}>${esc(item.kind)} · ${esc(item.id)}</option>`).join('') : '<option value="">No redeemed rewards</option>'}</select><label class="eyebrow" for="correction-reason" style="display:block;margin-top:12px">Redemption correction reason</label><input id="correction-reason" type="text" value="${esc(correctionReason)}" placeholder="Explain the mistaken redemption"><button type="button" data-correct ${isCorrecting || !view.redeemedRewards.length ? 'disabled' : ''} style="margin-top:12px">${isCorrecting ? 'Saving…' : 'Restore Redeemed Reward'}</button></div>
-          <p class="message" role="status">${esc(message)}</p>
-        </div>
-        <div class="activity"><div class="eyebrow">Recent activity · ${view.lifetimeDrinkCredits} lifetime credits</div>${view.recentActivity.map(item => `<p>${esc(item.label)} · ${esc(item.actor)}</p>`).join('')}</div>`;
+      return `<div class="mast"><strong>BEND &amp; BREW</strong><span>STAFF SCANNER</span></div>
+        <div class="panel"><div class="eyebrow">Scan to add one drink</div><h2>Point at Patrick's QR.</h2><p class="small">The scan will beep and add one Drink Credit immediately.</p>
+        <label for="access-code" class="eyebrow">Staff Access Code</label><input id="access-code" type="password" autocomplete="off" value="${esc(accessCode)}" placeholder="Enter shared code">
+        <video id="scanner" class="scanner" playsinline hidden></video><canvas id="scanner-canvas" hidden></canvas>
+        <div class="actions"><button type="button" data-start>Start scanner</button><button class="secondary" type="button" data-manual>Use manual fallback</button></div>
+        <div class="manual" hidden><label for="card-token" class="eyebrow">Card QR value</label><input id="card-token" type="text" placeholder="Paste the QR value"><button type="button" data-submit-manual style="margin-top:12px">Add drink</button></div>
+        <div id="status" class="status" role="status">Enter the Staff code, then tap Start scanner.</div>
+        <div class="tally center"><div class="eyebrow">Patrick's tally</div><h1>${view.lifetimeDrinkCredits}</h1><p>${view.drinkCredits} of 8 toward the next free drink</p></div>
+        <a class="staff-link" href="/">Patrick's card</a></div>`;
     }
 
     function render(view) {
       currentView = view;
-      app.innerHTML = mode === 'member' ? memberMarkup(view) : staffMarkup(view);
-      document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => { stopScanner(); mode = button.dataset.mode; message = ''; render(currentView); }));
-      document.querySelector('[data-reveal-reward]')?.addEventListener('click', revealReward);
-      document.querySelector('[data-record]')?.addEventListener('click', recordPaidDrink);
-      document.querySelector('[data-preview]')?.addEventListener('click', previewRedemption);
-      document.querySelector('[data-confirm]')?.addEventListener('click', confirmRedemption);
-      document.querySelector('[data-camera]')?.addEventListener('click', scanWithCamera);
-      document.querySelector('[data-adjust]')?.addEventListener('click', applyCreditAdjustment);
-      document.querySelector('[data-correct]')?.addEventListener('click', correctRedemption);
+      app.innerHTML = isStaff ? staffMarkup(view) : memberMarkup(view);
+      if (isStaff) {
+        document.querySelector('[data-start]').addEventListener('click', startScanner);
+        document.querySelector('[data-manual]').addEventListener('click', () => { document.querySelector('.manual').hidden = false; setStatus('Paste the QR value from Patrick\'s screen.', ''); });
+        document.querySelector('[data-submit-manual]').addEventListener('click', () => recordScan(document.querySelector('#card-token').value.trim()));
+      }
     }
 
-    async function revealReward() {
-      const rewardId = document.querySelector('[data-reveal-reward]').dataset.rewardId;
-      try {
-        const response = await fetch('/api/rewards/reveal', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ memberId:'patrick', rewardId }) });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'The reward could not be revealed.');
-        revealedReward = result;
-        message = 'Reward QR ready. Show it to Staff.';
-        render(currentView);
-      } catch (error) { message = error.message; render(currentView); }
+    function setStatus(text, kind = '') {
+      const status = document.querySelector('#status');
+      if (status) { status.textContent = text; status.className = `status ${kind}`; }
     }
 
-    async function previewRedemption() {
-      const accessCode = document.querySelector('#access-code').value;
-      const token = document.querySelector('#reward-token').value.trim();
-      staffAccessCode = accessCode;
-      staffToken = token;
+    function playBeep() {
       try {
-        const response = await fetch('/api/staff/redemptions/preview', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ accessCode, token }) });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'The Reward QR could not be previewed.');
-        staffPreview = result;
-        message = 'Review the Redemption, then confirm it.';
-        render(currentView);
-      } catch (error) { message = error.message; render(currentView); }
+        audioContext ??= new (window.AudioContext || window.webkitAudioContext)();
+        audioContext.resume();
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        oscillator.frequency.value = 880;
+        gain.gain.setValueAtTime(.18, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + .18);
+        oscillator.connect(gain).connect(audioContext.destination);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + .18);
+      } catch { /* Haptics and the visible success alert remain available. */ }
+      navigator.vibrate?.(120);
     }
 
-    async function confirmRedemption() {
-      if (isConfirming) return;
-      const accessCode = document.querySelector('#access-code').value;
-      const token = document.querySelector('#reward-token').value.trim();
-      staffAccessCode = accessCode;
-      staffToken = token;
-      redemptionRequestId ??= crypto.randomUUID();
-      isConfirming = true;
-      message = 'Confirming the Redemptionâ€¦';
-      render(currentView);
+    async function recordScan(cardToken) {
+      if (scanBusy) return;
+      if (!cardToken) { setStatus('No QR value found. Try the camera again or use manual fallback.', 'error'); return; }
+      const code = document.querySelector('#access-code').value;
+      accessCode = code;
+      pendingCardToken ??= cardToken;
+      if (pendingCardToken !== cardToken) { pendingCardToken = cardToken; scanRequestId = undefined; }
+      scanRequestId ??= crypto.randomUUID();
+      scanBusy = true;
+      stopScanner();
+      setStatus('Saving the drink…');
       try {
-        const response = await fetch('/api/staff/redemptions', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ accessCode, token, requestId:redemptionRequestId }) });
+        const response = await fetch('/api/staff/scan', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ accessCode:code, cardToken, requestId:scanRequestId }) });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'The Redemption could not be completed.');
+        if (!response.ok) throw new Error(result.error || 'The scan could not be recorded.');
         currentView = result;
-        staffPreview = null;
-        staffToken = '';
-        redemptionRequestId = undefined;
-        revealedReward = null;
-        message = 'Redemption confirmed. The reward is no longer available.';
-      } catch (error) { message = error.message; }
-      finally { isConfirming = false; render(currentView); }
+        render(currentView);
+        playBeep();
+        setStatus(`Drink added for ${result.member.name}. Tally: ${result.lifetimeDrinkCredits}.`, 'success');
+        pendingCardToken = undefined;
+        scanRequestId = undefined;
+      } catch (error) { setStatus(`${error.message} Tap Add drink or Start scanner to retry.`, 'error'); }
+      finally { scanBusy = false; }
     }
 
-    async function scanWithCamera() {
-      staffAccessCode = document.querySelector('#access-code').value;
-      if (!navigator.mediaDevices?.getUserMedia) {
-        message = 'Camera access is unavailable here. Paste the Reward QR value manually.';
-        render(currentView);
-        return;
-      }
-      if (!('BarcodeDetector' in window) && !window.jsQR) {
-        message = 'The QR scanner is still loading. Try again in a moment, or paste the Reward QR value manually.';
-        render(currentView);
-        return;
-      }
+    async function startScanner() {
+      if (scanActive) return;
+      const code = document.querySelector('#access-code').value.trim();
+      if (!code) { setStatus('Enter the Staff Access Code before starting the scanner.', 'error'); return; }
+      if (!navigator.mediaDevices?.getUserMedia || !window.jsQR) { setStatus('Camera scanning is unavailable. Use manual fallback.', 'error'); return; }
       const video = document.querySelector('#scanner');
       const canvas = document.querySelector('#scanner-canvas');
-      const context = canvas.getContext('2d', { willReadFrequently: true });
+      const context = canvas.getContext('2d', { willReadFrequently:true });
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
-        cameraStream = stream;
+        setStatus('Requesting camera permission…');
+        audioContext ??= new (window.AudioContext || window.webkitAudioContext)();
+        await audioContext.resume();
+        scannerStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
         scanActive = true;
-        video.srcObject = stream;
+        video.srcObject = scannerStream;
         video.hidden = false;
         await video.play();
-        const detector = 'BarcodeDetector' in window ? new BarcodeDetector({ formats:['qr_code'] }) : undefined;
+        setStatus('Scanner ready. Point at Patrick\'s QR.');
         const scan = async () => {
           if (!scanActive || video.hidden) return;
           try {
-            let codes;
-            if (detector) {
-              codes = await detector.detect(video);
-            } else if (video.videoWidth && video.videoHeight) {
-              canvas.width = video.videoWidth;
-              canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            if (canvas.width && canvas.height) {
               context.drawImage(video, 0, 0, canvas.width, canvas.height);
               const image = context.getImageData(0, 0, canvas.width, canvas.height);
-              const code = window.jsQR(image.data, image.width, image.height, { inversionAttempts: 'attemptBoth' });
-              codes = code ? [{ rawValue: code.data }] : [];
-            } else {
-              codes = [];
-            }
-            if (codes[0]?.rawValue) {
-              staffToken = codes[0].rawValue;
-              stopScanner();
-              message = 'Reward QR captured. Preview the Redemption.';
-              render(currentView);
-              return;
+              const code = window.jsQR(image.data, image.width, image.height, { inversionAttempts:'attemptBoth' });
+              if (code?.data) { await recordScan(code.data); return; }
             }
             requestAnimationFrame(scan);
-          } catch {
-            stopScanner();
-            message = 'Camera scanning failed. Paste the Reward QR value manually.';
-            render(currentView);
-          }
+          } catch { stopScanner(); setStatus('Camera scanning failed. Use manual fallback.', 'error'); }
         };
         requestAnimationFrame(scan);
-      } catch { stopScanner(); message = 'Camera access failed. Paste the Reward QR value manually.'; render(currentView); }
+      } catch { stopScanner(); setStatus('Camera permission was unavailable. Use manual fallback.', 'error'); }
     }
 
     function stopScanner() {
       scanActive = false;
-      cameraStream?.getTracks().forEach(track => track.stop());
-      cameraStream = undefined;
+      scannerStream?.getTracks().forEach(track => track.stop());
+      scannerStream = undefined;
       const video = document.querySelector('#scanner');
       if (video) { video.hidden = true; video.srcObject = null; }
     }
 
-    async function applyCreditAdjustment() {
-      if (isAdjusting) return;
-      staffAccessCode = document.querySelector('#access-code').value;
-      adjustmentAmount = document.querySelector('#adjustment-amount').value;
-      adjustmentReason = document.querySelector('#adjustment-reason').value;
-      adjustmentRequestId ??= crypto.randomUUID();
-      isAdjusting = true;
-      render(currentView);
-      try {
-        const response = await fetch('/api/staff/adjustments', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ memberId:'patrick', accessCode:staffAccessCode, requestId:adjustmentRequestId, amount:Number(adjustmentAmount), reason:adjustmentReason }) });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'The Credit Adjustment could not be saved.');
-        currentView = result;
-        adjustmentAmount = '';
-        adjustmentReason = '';
-        adjustmentRequestId = undefined;
-        message = 'Credit Adjustment recorded in the ledger.';
-      } catch (error) { message = error.message; }
-      isAdjusting = false;
-      render(currentView);
-    }
-
-    async function correctRedemption() {
-      if (isCorrecting) return;
-      staffAccessCode = document.querySelector('#access-code').value;
-      correctionRewardId = document.querySelector('#correction-reward-id').value.trim();
-      correctionReason = document.querySelector('#correction-reason').value;
-      correctionRequestId ??= crypto.randomUUID();
-      isCorrecting = true;
-      render(currentView);
-      try {
-        const response = await fetch('/api/staff/redemption-corrections', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ accessCode:staffAccessCode, rewardId:correctionRewardId, requestId:correctionRequestId, reason:correctionReason }) });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'The Redemption correction could not be saved.');
-        currentView = result;
-        correctionRewardId = '';
-        correctionReason = '';
-        correctionRequestId = undefined;
-        message = 'Redemption corrected. The original activity remains in history.';
-      } catch (error) { message = error.message; }
-      isCorrecting = false;
-      render(currentView);
-    }
-
-    async function recordPaidDrink() {
-      if (isRecording) return;
-      const accessCode = document.querySelector('#access-code').value;
-      staffAccessCode = accessCode;
-      isRecording = true;
-      message = 'Saving the purchase…';
-      render(currentView);
-      try {
-        const response = await fetch('/api/staff/credits', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ memberId: 'patrick', accessCode, requestId: crypto.randomUUID() })
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'The purchase could not be recorded.');
-        message = 'Recorded. Patrick now has one more Drink Credit.';
-        currentView = result;
-      } catch (error) {
-        message = error.message;
-      } finally {
-        isRecording = false;
-        render(currentView);
-      }
-    }
-
-    fetch('/api/members/patrick').then(response => {
+    async function loadMember() {
+      const response = await fetch('/api/members/patrick');
       if (!response.ok) throw new Error('The Rewards Card could not be loaded.');
       return response.json();
-    }).then(render).catch(error => { app.innerHTML = `<div class="error">${esc(error.message)}</div>`; });
+    }
+
+    loadMember().then(view => { render(view); }).catch(error => { app.innerHTML = `<div class="status error">${esc(error.message)}</div>`; });
+    if (!isStaff) setInterval(() => loadMember().then(view => render(view)).catch(() => {}), 2500);
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" crossorigin="anonymous"></script>
 </body>
 </html>

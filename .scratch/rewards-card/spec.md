@@ -6,9 +6,13 @@ Status: ready-for-agent
 
 Patrick Kearns is Bend & Brew Coffee Co.'s first Member and deserves a personal, easy-to-use way to see loyalty progress and receive free drinks. Staff need a dependable way to record paid drinks, redeem rewards, and correct mistakes without relying on memory, paper, or an unexplained mutable balance.
 
+## Simplified v1 interaction
+
+The everyday experience is intentionally reduced to one permanent Member QR and one drink tally. Patrick's home screen shows his QR and current total. Staff open `/staff`, enter the shared Staff Access Code, and start the scanner. A successful scan records one Drink Credit, plays an audible beep, and shows an updated success alert on the Staff screen; Patrick's screen refreshes automatically. The service ledger and duplicate protection remain authoritative behind this simple flow. Reward redemption and correction operations remain available as secondary service capabilities but are not part of the primary scan interaction.
+
 ## Solution
 
-Build a mobile-first, installable web app centered on Patrick's Rewards Card. The customer experience uses the selected counter-ticket direction: a warm, compact card that makes the current reward, progress, and next action obvious. A Staff view uses the same underlying Rewards service to record purchases and confirm Redemptions.
+Build a mobile-first, installable web app centered on Patrick's Rewards Card. The customer experience uses the selected counter-ticket direction: a warm, compact card centered on a permanent QR and drink tally. A scanner-first Staff view uses the same underlying Rewards service to record one purchase per scan.
 
 The server and hosted relational database own the authoritative state. An append-only activity ledger explains every balance. Patrick starts with one gift Free Drink Reward and zero progress toward the next reward.
 
@@ -62,6 +66,7 @@ The server and hosted relational database own the authoritative state. An append
 - Free Drink Rewards do not expire. A confirmed Redemption consumes exactly one reward.
 - Patrick begins with one deliberate gift Free Drink Reward and zero Drink Credits toward the next reward.
 - Patrick's permanent Rewards Card QR is distinct from a single-use Reward QR.
+- For the simplified v1 primary workflow, Patrick's permanent Rewards Card QR is the only QR shown in the customer and Staff surfaces; Reward QR redemption remains a secondary service capability until deliberately brought back into the main experience.
 - A Reward QR is generated only after Patrick chooses an available reward, is valid for five minutes, and cannot itself complete a Redemption. Staff confirmation is required.
 - Staff actions use one shared Staff Access Code in version one and are attributed as Staff rather than falsely distinguishing Jesse from Becky.
 - Staff can add credits and redeem rewards through scanning or a manual record lookup fallback.
