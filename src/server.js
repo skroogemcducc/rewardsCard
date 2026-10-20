@@ -14,9 +14,24 @@ function sendJson(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
+async function readJson(request) {
+  let body = '';
+  for await (const chunk of request) body += chunk;
+  return JSON.parse(body || '{}');
+}
+
 const server = createServer(async (request, response) => {
   if (request.method === 'GET' && request.url === '/api/members/patrick') {
     return sendJson(response, 200, service.getMemberView('patrick'));
+  }
+
+  if (request.method === 'POST' && request.url === '/api/staff/credits') {
+    try {
+      const { memberId, accessCode, requestId } = await readJson(request);
+      return sendJson(response, 200, service.recordQualifyingDrink({ memberId, accessCode, requestId }));
+    } catch (error) {
+      return sendJson(response, 400, { error: error.message });
+    }
   }
 
   if (request.method === 'GET' && (request.url === '/' || request.url === '/index.html')) {
