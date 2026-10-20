@@ -32,6 +32,7 @@
     .qr-card { display:flex; align-items:center; gap:18px; margin-top:12px; padding:14px; border:1px solid currentColor; }
     .qr-image { width:150px; height:150px; background:#fff; }
     .scanner { width:100%; margin-top:14px; background:#171615; }
+    #scanner-canvas { display:none; }
     .activity { margin-top:24px; padding-top:18px; border-top:2px dashed currentColor; }
     .activity p { color:var(--muted); }
     .staff-panel { padding:24px 0 0; }
@@ -96,7 +97,7 @@
           <label class="eyebrow" for="access-code">Staff Access Code</label><input id="access-code" type="password" autocomplete="off" value="${esc(staffAccessCode)}" placeholder="Enter shared code">
           <label class="eyebrow" for="reward-token" style="display:block;margin-top:18px">Reward QR token or scanned value</label><input id="reward-token" type="text" autocomplete="off" value="${esc(staffToken)}" placeholder="Scan or paste the Reward QR value">
           <div class="action"><button type="button" data-record ${isRecording ? 'disabled' : ''}>${isRecording ? 'Saving…' : 'Record paid drink'}</button><button type="button" data-preview>Preview Redemption</button><button class="secondary" type="button" data-camera>Scan with camera</button><button class="secondary" type="button" data-mode="member">Back to card</button></div>
-          <video id="scanner" class="scanner" playsinline hidden></video>
+          <video id="scanner" class="scanner" playsinline hidden></video><canvas id="scanner-canvas"></canvas>
           ${staffPreview ? `<div class="reward" style="margin-top:18px"><div><strong>Redeem one free drink for ${esc(staffPreview.member.name)}?</strong><br><small>${esc(staffPreview.reward.kind)} · expires ${new Date(staffPreview.expiresAt).toLocaleTimeString()}</small></div><button type="button" data-confirm ${isConfirming ? 'disabled' : ''}>${isConfirming ? 'Confirming…' : 'Confirm Redemption'}</button></div>` : ''}
           <div class="staff-panel"><div class="eyebrow">Corrections</div><label class="eyebrow" for="adjustment-amount" style="display:block;margin-top:14px">Credit Adjustment (+/-)</label><input id="adjustment-amount" type="number" step="1" value="${esc(adjustmentAmount)}" placeholder="Example: 1 or -1"><label class="eyebrow" for="adjustment-reason" style="display:block;margin-top:12px">Adjustment reason</label><input id="adjustment-reason" type="text" value="${esc(adjustmentReason)}" placeholder="Explain the correction"><button type="button" data-adjust ${isAdjusting ? 'disabled' : ''} style="margin-top:12px">${isAdjusting ? 'Saving…' : 'Apply Credit Adjustment'}</button>
           <label class="eyebrow" for="correction-reward-id" style="display:block;margin-top:22px">Redeemed Reward</label><select id="correction-reward-id" ${isCorrecting ? 'disabled' : ''}>${view.redeemedRewards.length ? view.redeemedRewards.map(item => `<option value="${esc(item.id)}" ${item.id === correctionRewardId ? 'selected' : ''}>${esc(item.kind)} · ${esc(item.id)}</option>`).join('') : '<option value="">No redeemed rewards</option>'}</select><label class="eyebrow" for="correction-reason" style="display:block;margin-top:12px">Redemption correction reason</label><input id="correction-reason" type="text" value="${esc(correctionReason)}" placeholder="Explain the mistaken redemption"><button type="button" data-correct ${isCorrecting || !view.redeemedRewards.length ? 'disabled' : ''} style="margin-top:12px">${isCorrecting ? 'Saving…' : 'Restore Redeemed Reward'}</button></div>
@@ -171,12 +172,19 @@
 
     async function scanWithCamera() {
       staffAccessCode = document.querySelector('#access-code').value;
-      if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
-        message = 'Camera scanning is unavailable here. Paste the Reward QR value manually.';
+      if (!navigator.mediaDevices?.getUserMedia) {
+        message = 'Camera access is unavailable here. Paste the Reward QR value manually.';
+        render(currentView);
+        return;
+      }
+      if (!('BarcodeDetector' in window) && !window.jsQR) {
+        message = 'The QR scanner is still loading. Try again in a moment, or paste the Reward QR value manually.';
         render(currentView);
         return;
       }
       const video = document.querySelector('#scanner');
+      const canvas = document.querySelector('#scanner-canvas');
+      const context = canvas.getContext('2d', { willReadFrequently: true });
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
         cameraStream = stream;
@@ -184,11 +192,23 @@
         video.srcObject = stream;
         video.hidden = false;
         await video.play();
-        const detector = new BarcodeDetector({ formats:['qr_code'] });
+        const detector = 'BarcodeDetector' in window ? new BarcodeDetector({ formats:['qr_code'] }) : undefined;
         const scan = async () => {
           if (!scanActive || video.hidden) return;
           try {
-            const codes = await detector.detect(video);
+            let codes;
+            if (detector) {
+              codes = await detector.detect(video);
+            } else if (video.videoWidth && video.videoHeight) {
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              context.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const image = context.getImageData(0, 0, canvas.width, canvas.height);
+              const code = window.jsQR(image.data, image.width, image.height, { inversionAttempts: 'attemptBoth' });
+              codes = code ? [{ rawValue: code.data }] : [];
+            } else {
+              codes = [];
+            }
             if (codes[0]?.rawValue) {
               staffToken = codes[0].rawValue;
               stopScanner();
@@ -289,5 +309,6 @@
       return response.json();
     }).then(render).catch(error => { app.innerHTML = `<div class="error">${esc(error.message)}</div>`; });
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" crossorigin="anonymous"></script>
 </body>
 </html>
