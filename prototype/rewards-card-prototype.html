@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bend &amp; Brew Rewards Card — Prototype</title>
+  <style>
+    /* PROTOTYPE ONLY: three throwaway directions for visual review. */
+    :root { --ink:#2c241f; --cream:#f7f0df; --paper:#fffaf0; --rust:#b84d32; --gold:#e3a43b; --sage:#71816b; --muted:#756d63; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:#d9d0bd; font:16px/1.45 Georgia, serif; }
+    button { font:inherit; cursor:pointer; }
+    .shell { min-height:100vh; padding:24px 18px 110px; }
+    .prototype-note { max-width:920px; margin:0 auto 18px; color:#fff; font:12px/1.4 ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; }
+    .page { max-width:920px; margin:auto; }
+    .eyebrow { font:700 11px/1 ui-monospace,monospace; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { font-size:clamp(36px,7vw,74px); line-height:.92; letter-spacing:-.06em; }
+    h2 { font-size:32px; line-height:1; }
+    .muted { color:var(--muted); }
+    .button { border:0; border-radius:999px; padding:13px 18px; background:var(--ink); color:#fff; font-weight:700; }
+    .button.alt { background:transparent; border:1px solid currentColor; color:inherit; }
+    .button:active { transform:translateY(1px); }
+    .rolebar { display:flex; gap:8px; margin:18px 0; }
+    .rolebar button { border:1px solid #b9ab94; border-radius:999px; padding:8px 13px; background:transparent; color:inherit; }
+    .rolebar button.active { background:var(--ink); color:#fff; }
+    .credits { display:flex; gap:8px; flex-wrap:wrap; }
+    .credit { width:30px; height:30px; border:2px solid currentColor; border-radius:50%; display:grid; place-items:center; font:700 12px ui-monospace,monospace; }
+    .credit.filled { background:var(--gold); border-color:var(--gold); }
+    .wallet { padding:16px; border-radius:14px; background:#efe0b9; }
+    .reward { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px dashed currentColor; border-radius:10px; }
+    .qr { width:120px; aspect-ratio:1; display:grid; place-items:center; border:9px solid #fff; background:repeating-conic-gradient(#222 0 25%,#fff 0 50%) 50% / 16px 16px; color:#222; font:bold 11px ui-monospace,monospace; text-align:center; }
+    .switcher { position:fixed; z-index:5; left:50%; bottom:20px; transform:translateX(-50%); display:flex; align-items:center; gap:13px; padding:9px 12px; border:2px solid #fff; border-radius:999px; background:#201b18; color:#fff; box-shadow:0 8px 28px #0005; font:13px ui-monospace,monospace; white-space:nowrap; }
+    .switcher button { width:28px; height:28px; border:0; border-radius:50%; background:#fff; color:#201b18; }
+
+    /* A: a tactile postcard / keepsake. */
+    .a { color:var(--ink); background:var(--cream); border:10px solid var(--rust); padding:clamp(22px,6vw,62px); box-shadow:10px 12px 0 #9e3f2b; }
+    .a header { display:flex; justify-content:space-between; gap:20px; border-bottom:2px solid var(--ink); padding-bottom:22px; margin-bottom:36px; }
+    .a .stamp { width:74px; height:74px; border:2px solid var(--rust); color:var(--rust); border-radius:50%; display:grid; place-items:center; text-align:center; font-size:11px; transform:rotate(8deg); }
+    .a .hero { display:grid; grid-template-columns:1.2fr .8fr; gap:36px; align-items:end; }
+    .a .progress { margin-top:30px; padding:22px; background:var(--paper); border:2px solid var(--ink); }
+    .a .activity { margin-top:28px; border-top:2px solid var(--ink); padding-top:16px; }
+    .a .staff { margin-top:30px; padding:20px; background:#ead4a8; }
+    @media(max-width:650px){.a .hero{grid-template-columns:1fr}.a header{align-items:start}}
+
+    /* B: a compact, modern pocket dashboard. */
+    .b { background:#f4f5ee; border-radius:28px; padding:22px; font-family:ui-sans-serif,system-ui,sans-serif; }
+    .b .top { display:flex; justify-content:space-between; align-items:center; padding:8px 4px 30px; }
+    .b .brand { font-weight:900; letter-spacing:-.06em; font-size:22px; }
+    .b .grid { display:grid; grid-template-columns:1.35fr .65fr; gap:16px; }
+    .b .panel { background:#fff; border-radius:20px; padding:22px; box-shadow:0 2px 8px #27311b12; }
+    .b .big-number { font-size:72px; font-weight:900; line-height:.9; color:#50654a; }
+    .b .qrpanel { background:#50654a; color:#fff; display:flex; flex-direction:column; justify-content:space-between; min-height:220px; }
+    .b .qr { margin:auto; }
+    .b .reward { border-color:#d9dfd2; background:#f5f8f1; }
+    .b .staff { grid-column:1/-1; background:#e5eadd; }
+    .b .button { background:#50654a; }
+    @media(max-width:650px){.b .grid{grid-template-columns:1fr}.b .qrpanel{min-height:180px}}
+
+    /* C: a counter ticket / one-screen action flow. */
+    .c { background:#252321; color:#f8edda; padding:clamp(20px,6vw,70px); font-family:ui-monospace,monospace; }
+    .c .ticket { max-width:620px; margin:auto; padding:28px; background:#f8edda; color:#252321; position:relative; }
+    .c .ticket:before,.c .ticket:after { content:""; position:absolute; left:0; right:0; height:10px; background:radial-gradient(circle at 5px 0,transparent 5px,#252321 6px) 0 0/18px 10px; }
+    .c .ticket:before{top:-1px}.c .ticket:after{bottom:-1px;transform:rotate(180deg)}
+    .c .mast { display:flex; justify-content:space-between; border-bottom:2px dashed currentColor; padding-bottom:18px; }
+    .c .status { display:flex; justify-content:space-between; align-items:end; padding:32px 0; border-bottom:2px dashed currentColor; }
+    .c .status strong { font-size:58px; line-height:.8; }
+    .c .action { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding-top:22px; }
+    .c .button { border-radius:2px; background:var(--rust); }
+    .c .button.alt { border:2px solid currentColor; color:inherit; }
+    .c .reward { margin-top:22px; border-radius:0; }
+    .c .staff { margin-top:26px; border-top:2px dashed currentColor; padding-top:22px; }
+    @media(max-width:520px){.c .action{grid-template-columns:1fr}.c .status{display:block}.c .status .qr{margin:24px auto 0}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="prototype-note">PROTOTYPE — visual exploration only · Bend &amp; Brew Rewards Card</div>
+    <section id="app" class="page" aria-live="polite"></section>
+  </main>
+  <nav class="switcher" aria-label="Prototype variants">
+    <button id="prev" aria-label="Previous variant">←</button>
+    <span id="variantLabel"></span>
+    <button id="next" aria-label="Next variant">→</button>
+  </nav>
+  <script>
+    const variants = [
+      { key:'A', name:'Postcard keepsake', className:'a' },
+      { key:'B', name:'Pocket dashboard', className:'b' },
+      { key:'C', name:'Counter ticket', className:'c' }
+    ];
+    const qs = new URLSearchParams(location.search);
+    let current = Math.max(0, variants.findIndex(v => v.key === qs.get('variant')));
+    let role = 'member';
+    let credits = 5;
+    let rewards = 1;
+    let revealed = false;
+
+    function creditsMarkup() {
+      return Array.from({length:8}, (_, i) => `<span class="credit ${i < credits ? 'filled' : ''}">${i < credits ? '✓' : i + 1}</span>`).join('');
+    }
+    function roleMarkup() {
+      return `<div class="rolebar"><button class="${role === 'member' ? 'active' : ''}" data-role="member">Patrick's card</button><button class="${role === 'staff' ? 'active' : ''}" data-role="staff">Staff view</button></div>`;
+    }
+    function rewardMarkup() {
+      if (!rewards) return `<p class="muted">No rewards in the wallet yet. Keep going!</p>`;
+      return `<div class="reward"><div><strong>Free drink reward</strong><br><span class="muted">No expiration · earned today</span></div><button class="button" data-action="reveal">${revealed ? 'Hide code' : 'Use reward'}</button></div>${revealed ? '<div style="display:flex;gap:18px;align-items:center;margin-top:14px"><div class="qr">REWARD<br>QR</div><small>Show this to staff.<br>It expires in 05:00.</small></div>' : ''}`;
+    }
+    function staffMarkup() {
+      return `<div class="staff"><div class="eyebrow">Staff action</div><h3>${role === 'staff' ? 'Ready for Patrick' : 'At the counter'}</h3><p class="muted">Scan the permanent card to add a paid drink, or scan a revealed reward to redeem it. Confirmation happens before the ledger changes.</p><button class="button alt" data-action="add">Add one drink credit</button> <button class="button alt" data-action="redeem">Redeem shown reward</button><p id="staffMessage" class="muted" style="margin:12px 0 0"></p></div>`;
+    }
+    function render() {
+      const v = variants[current];
+      document.getElementById('variantLabel').textContent = `${v.key} · ${v.name}`;
+      document.getElementById('app').className = `page ${v.className}`;
+      const member = `<div class="eyebrow">Bend &amp; Brew Coffee Co.</div><h1>${v.key === 'C' ? 'Patrick\'s coffee tally.' : 'A little thank-you\nfor Patrick.'}</h1><p class="muted">Your next free drink is getting closer.</p><div class="progress"><div class="eyebrow">Progress to your next free drink</div><div class="credits" style="margin:16px 0">${creditsMarkup()}</div><strong>${credits} of 8 drink credits</strong></div><div class="wallet" style="margin-top:18px"><div class="eyebrow">Reward wallet</div>${rewardMarkup()}</div>`;
+      let body = '';
+      if (v.key === 'A') body = `<header><div><div class="eyebrow">Bend &amp; Brew · Est. somewhere good</div></div><div class="stamp">MADE<br>FOR<br>PATRICK</div></header><div class="hero"><div>${member}<p style="margin-top:24px"><button class="button" data-action="card">Show my card QR</button></p></div><div class="activity"><div class="eyebrow">Recent activity</div><p>Today · 1 drink credit<br>Last Friday · Free drink reward</p><p class="muted">Lifetime drinks: 42<br>Badge: Regular legend</p></div></div>${roleMarkup()}${staffMarkup()}`;
+      if (v.key === 'B') body = `<div class="top"><span class="brand">bend &amp; brew</span><span class="eyebrow">PK · rewards</span></div>${roleMarkup()}<div class="grid"><div class="panel">${member}</div><div class="panel qrpanel"><span class="eyebrow">Your rewards card</span><div class="qr">CARD<br>QR</div><small>Tap to show at the counter</small></div><div class="panel" style="grid-column:1/-1"><div class="eyebrow">Recent activity · 42 lifetime drinks</div><p style="margin:10px 0 0">+1 Drink Credit <span class="muted">· Today</span><br>Free Drink Reward <span class="muted">· Sep 28</span></p></div>${staffMarkup()}</div>`;
+      if (v.key === 'C') body = `<div class="ticket"><div class="mast"><strong>BEND &amp; BREW</strong><span>NO. 0042</span></div>${roleMarkup()}<div class="status"><div><div class="eyebrow">PATRICK KEARNS</div><h2>One free<br>drink waiting.</h2><p>5 / 8 credits to the next one.</p></div><div class="qr">CARD<br>QR</div></div><div style="padding-top:22px"><div class="eyebrow">Wallet</div>${rewardMarkup()}</div><div class="action"><button class="button" data-action="card">Show card</button><button class="button alt" data-action="activity">View activity</button></div>${role === 'staff' ? staffMarkup() : ''}</div>`;
+      document.getElementById('app').innerHTML = body;
+      document.querySelectorAll('[data-role]').forEach(b => b.addEventListener('click', () => { role = b.dataset.role; render(); }));
+      document.querySelectorAll('[data-action]').forEach(b => b.addEventListener('click', () => action(b.dataset.action)));
+    }
+    function action(type) {
+      const message = document.getElementById('staffMessage');
+      if (type === 'reveal') revealed = !revealed;
+      if (type === 'add') { credits = Math.min(8, credits + 1); if (credits === 8) { credits = 0; rewards++; } }
+      if (type === 'redeem') { if (rewards > 0 && revealed) { rewards--; revealed = false; } }
+      render();
+      if (message) message.textContent = type === 'add' ? 'Preview: one credit added after staff confirmation.' : type === 'redeem' ? 'Preview: reward redeemed and removed from the wallet.' : '';
+    }
+    function move(delta) { current = (current + delta + variants.length) % variants.length; history.replaceState({}, '', `?variant=${variants[current].key}`); revealed = false; render(); }
+    document.getElementById('prev').addEventListener('click', () => move(-1));
+    document.getElementById('next').addEventListener('click', () => move(1));
+    document.addEventListener('keydown', e => { if (!['INPUT','TEXTAREA'].includes(document.activeElement.tagName) && !document.activeElement.isContentEditable && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) move(e.key === 'ArrowLeft' ? -1 : 1); });
+    render();
+  </script>
+</body>
+</html>

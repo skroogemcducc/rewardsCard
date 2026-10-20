@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#252321">
+  <title>Bend &amp; Brew Rewards Card</title>
+  <style>
+    :root { --ink:#252321; --cream:#f8edda; --rust:#b84d32; --muted:#776d61; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; padding:24px 16px 48px; background:var(--ink); color:var(--cream); font:16px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    main { max-width:620px; margin:auto; }
+    .note { margin:0 auto 18px; color:#cdbda4; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+    .ticket { position:relative; padding:32px 26px; background:var(--cream); color:var(--ink); }
+    .ticket::before,.ticket::after { content:""; position:absolute; left:0; right:0; height:10px; background:radial-gradient(circle at 5px 0, transparent 5px, var(--ink) 6px) 0 0/18px 10px; }
+    .ticket::before { top:-1px; }.ticket::after { bottom:-1px; transform:rotate(180deg); }
+    .mast { display:flex; justify-content:space-between; gap:12px; border-bottom:2px dashed currentColor; padding-bottom:18px; }
+    .eyebrow { font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+    h1 { margin:0; max-width:430px; font:700 clamp(42px,11vw,70px)/.88 Georgia, serif; letter-spacing:-.07em; }
+    .status { display:flex; justify-content:space-between; align-items:end; gap:24px; padding:34px 0; border-bottom:2px dashed currentColor; }
+    .status p { margin:14px 0 0; color:var(--muted); }
+    .qr { width:128px; aspect-ratio:1; display:grid; place-items:center; flex:none; border:10px solid #fff; background:repeating-conic-gradient(#222 0 25%,#fff 0 50%) 50%/16px 16px; color:#222; font-size:11px; font-weight:700; text-align:center; }
+    .wallet { padding:22px 0; border-bottom:2px dashed currentColor; }
+    .reward { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:10px; padding:14px; border:1px solid currentColor; }
+    .reward small { color:var(--muted); }
+    .action { display:flex; flex-wrap:wrap; gap:10px; padding-top:22px; }
+    button { border:0; border-radius:2px; padding:13px 16px; background:var(--rust); color:#fff; font:700 14px ui-monospace,monospace; cursor:pointer; }
+    button.secondary { background:transparent; color:inherit; border:2px solid currentColor; }
+    .activity { margin-top:24px; padding-top:18px; border-top:2px dashed currentColor; }
+    .activity p { color:var(--muted); }
+    .error { padding:20px; background:#f5c8bb; color:#4b1f17; }
+    @media (max-width:520px) { .status { display:block; }.qr { margin-top:24px; }.reward { align-items:start; flex-direction:column; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="note">Bend &amp; Brew · Rewards Card</p>
+    <section id="app" class="ticket" aria-live="polite">Loading Patrick's card…</section>
+  </main>
+  <script>
+    const app = document.querySelector('#app');
+    const esc = value => String(value).replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
+
+    function render(view) {
+      const credits = Array.from({ length:8 }, (_, index) => `<span style="display:inline-grid;place-items:center;width:30px;height:30px;margin:12px 5px 0 0;border:2px solid currentColor;border-radius:50%;background:${index < view.drinkCredits ? '#e3a43b' : 'transparent'}">${index < view.drinkCredits ? '✓' : index + 1}</span>`).join('');
+      const reward = view.availableRewards[0];
+      app.innerHTML = `
+        <div class="mast"><strong>BEND &amp; BREW</strong><span>NO. 0042</span></div>
+        <div class="status">
+          <div><div class="eyebrow">${esc(view.member.name)}</div><h1>A little thank-you for Patrick.</h1><p>${view.drinkCredits} / 8 credits to the next one.</p></div>
+          <div class="qr" aria-label="Rewards Card QR">CARD<br>QR</div>
+        </div>
+        <div class="wallet"><div class="eyebrow">Reward Wallet</div>${reward ? `<div class="reward"><div><strong>${esc(reward.kind)}</strong><br><small>No expiration · welcome gift</small></div><button class="secondary" type="button" disabled title="Reward reveal arrives in the next slice">Use reward</button></div>` : '<p>No rewards in the wallet yet.</p>'}</div>
+        <div><div class="eyebrow" style="margin-top:22px">Progress to your next free drink</div><div>${credits}</div><p style="color:var(--muted)">${view.creditsToNextReward} credits remaining</p></div>
+        <div class="action"><button type="button" disabled title="Card presentation arrives in the next slice">Show my card</button><button class="secondary" type="button" disabled title="Activity view arrives in the next slice">View activity</button></div>
+        <div class="activity"><div class="eyebrow">Recent activity · ${view.lifetimeDrinkCredits} lifetime credits</div>${view.recentActivity.map(item => `<p>${esc(item.label)} · ${esc(item.actor)}</p>`).join('')}</div>`;
+    }
+
+    fetch('/api/members/patrick').then(response => {
+      if (!response.ok) throw new Error('The Rewards Card could not be loaded.');
+      return response.json();
+    }).then(render).catch(error => { app.innerHTML = `<div class="error">${esc(error.message)}</div>`; });
+  </script>
+</body>
+</html>
