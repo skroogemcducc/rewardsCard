@@ -4,13 +4,16 @@
 
 **Blocked by:** 03: Milestones and rollover work
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Patrick must choose an available reward before a Reward QR is generated.
-- [ ] The Reward QR identifies one reward, is valid for five minutes, and is single-use.
-- [ ] Staff can scan or manually enter the Reward QR and see the intended Redemption before confirming.
-- [ ] Confirmation consumes exactly one Free Drink Reward.
-- [ ] A drink received through Redemption does not create a Drink Credit.
-- [ ] Expired, already-used, duplicate, or invalid Reward QRs are rejected safely.
-- [ ] The wallet, activity history, and success state update after confirmation.
+- [x] Patrick must choose an available reward before a Reward QR is generated.
+- [x] The Reward QR identifies one reward, is valid for five minutes, and is single-use.
+- [x] Staff can scan or manually enter the Reward QR and see the intended Redemption before confirming.
+- [x] Confirmation consumes exactly one Free Drink Reward.
+- [x] A drink received through Redemption does not create a Drink Credit.
+- [x] Expired, already-used, duplicate, or invalid Reward QRs are rejected safely.
+- [x] The wallet, activity history, and success state update after confirmation.
 
+## Answer
+
+Patrick can reveal an opaque, five-minute Reward QR for one available reward. Staff can preview the identified Member and reward using camera scanning where the browser supports BarcodeDetector, or paste the token manually, then confirm a single Redemption. The ledger records the Redemption without adding a Drink Credit.

@@ -112,3 +112,57 @@ test('a request ID cannot silently discard another Member\'s purchase', () => {
     requestId: 'shared-request'
   }), /Request ID already belongs to another Member/);
 });
+
+test('Patrick can reveal a reward for five minutes and Staff can preview and redeem it once', () => {
+  let currentTime = 1_000_000;
+  const service = createRewardsService({
+    database: ':memory:',
+    staffAccessCode: 'espresso',
+    now: () => currentTime
+  });
+
+  const issued = service.revealReward({ memberId: 'patrick', rewardId: 'welcome-reward' });
+  assert.equal(issued.rewardId, 'welcome-reward');
+  assert.equal(issued.expiresAt, currentTime + 5 * 60 * 1000);
+
+  const preview = service.previewRedemption({ accessCode: 'espresso', token: issued.token });
+  assert.deepEqual(preview.member, { id: 'patrick', name: 'Patrick Kearns' });
+  assert.deepEqual(preview.reward, { id: 'welcome-reward', kind: 'Free Drink Reward' });
+
+  const redeemed = service.redeemReward({ accessCode: 'espresso', token: issued.token, requestId: 'redemption-001' });
+  assert.equal(redeemed.availableRewards.length, 0);
+  assert.equal(redeemed.lifetimeDrinkCredits, 0);
+  assert.equal(redeemed.recentActivity[0].type, 'Redemption');
+  assert.deepEqual(service.redeemReward({ accessCode: 'espresso', token: issued.token, requestId: 'redemption-001' }), redeemed);
+  assert.throws(() => service.redeemReward({ accessCode: 'espresso', token: issued.token, requestId: 'redemption-002' }), /already been used/);
+});
+
+test('an expired Reward QR cannot be previewed or redeemed', () => {
+  let currentTime = 2_000_000;
+  const service = createRewardsService({
+    database: ':memory:',
+    staffAccessCode: 'espresso',
+    now: () => currentTime
+  });
+  const issued = service.revealReward({ memberId: 'patrick', rewardId: 'welcome-reward' });
+  currentTime += 5 * 60 * 1000;
+
+  assert.throws(() => service.previewRedemption({ accessCode: 'espresso', token: issued.token }), /expired/);
+  assert.throws(() => service.redeemReward({ accessCode: 'espresso', token: issued.token, requestId: 'expired-001' }), /expired/);
+});
+
+test('revealing a reward again invalidates its older Reward QR', () => {
+  const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
+
+  const first = service.revealReward({ memberId: 'patrick', rewardId: 'welcome-reward' });
+  const second = service.revealReward({ memberId: 'patrick', rewardId: 'welcome-reward' });
+
+  assert.throws(() => service.previewRedemption({ accessCode: 'espresso', token: first.token }), /already been used/);
+  assert.equal(service.previewRedemption({ accessCode: 'espresso', token: second.token }).reward.id, 'welcome-reward');
+});
+
+test('an invalid Reward QR cannot be previewed', () => {
+  const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
+
+  assert.throws(() => service.previewRedemption({ accessCode: 'espresso', token: 'not-a-real-token' }), /Invalid Reward QR/);
+});

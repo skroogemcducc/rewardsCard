@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRewardsService } from './rewards-service.js';
+import QRCode from 'qrcode';
 
 const root = fileURLToPath(new URL('../public/', import.meta.url));
 mkdirSync('data', { recursive: true });
@@ -29,6 +30,34 @@ const server = createServer(async (request, response) => {
     try {
       const { memberId, accessCode, requestId } = await readJson(request);
       return sendJson(response, 200, service.recordQualifyingDrink({ memberId, accessCode, requestId }));
+    } catch (error) {
+      return sendJson(response, 400, { error: error.message });
+    }
+  }
+
+  if (request.method === 'POST' && request.url === '/api/rewards/reveal') {
+    try {
+      const { rewardId } = await readJson(request);
+      const reward = service.revealReward({ memberId: 'patrick', rewardId });
+      return sendJson(response, 200, { ...reward, qrDataUrl: await QRCode.toDataURL(reward.token, { margin: 1, width: 240 }) });
+    } catch (error) {
+      return sendJson(response, 400, { error: error.message });
+    }
+  }
+
+  if (request.method === 'POST' && request.url === '/api/staff/redemptions/preview') {
+    try {
+      const { accessCode, token } = await readJson(request);
+      return sendJson(response, 200, service.previewRedemption({ accessCode, token }));
+    } catch (error) {
+      return sendJson(response, 400, { error: error.message });
+    }
+  }
+
+  if (request.method === 'POST' && request.url === '/api/staff/redemptions') {
+    try {
+      const { accessCode, token, requestId } = await readJson(request);
+      return sendJson(response, 200, service.redeemReward({ accessCode, token, requestId }));
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
     }

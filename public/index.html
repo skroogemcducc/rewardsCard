@@ -29,6 +29,9 @@
     button.secondary { background:transparent; color:inherit; border:2px solid currentColor; }
     button:disabled { cursor:not-allowed; opacity:.5; }
     input { width:100%; padding:13px; border:2px solid currentColor; border-radius:2px; background:#fffaf0; color:var(--ink); font:16px ui-monospace,monospace; }
+    .qr-card { display:flex; align-items:center; gap:18px; margin-top:12px; padding:14px; border:1px solid currentColor; }
+    .qr-image { width:150px; height:150px; background:#fff; }
+    .scanner { width:100%; margin-top:14px; background:#171615; }
     .activity { margin-top:24px; padding-top:18px; border-top:2px dashed currentColor; }
     .activity p { color:var(--muted); }
     .staff-panel { padding:24px 0 0; }
@@ -49,6 +52,14 @@
     let mode = 'member';
     let message = '';
     let isRecording = false;
+    let revealedReward;
+    let staffPreview;
+    let staffToken = '';
+    let staffAccessCode = '';
+    let isConfirming = false;
+    let redemptionRequestId;
+    let cameraStream;
+    let scanActive = false;
 
     function creditsMarkup(view) {
       return Array.from({ length:8 }, (_, index) => `<span style="display:inline-grid;place-items:center;width:30px;height:30px;margin:12px 5px 0 0;border:2px solid currentColor;border-radius:50%;background:${index < view.drinkCredits ? '#e3a43b' : 'transparent'}">${index < view.drinkCredits ? '✓' : index + 1}</span>`).join('');
@@ -62,9 +73,10 @@
           <div><div class="eyebrow">${esc(view.member.name)}</div><h1>A little thank-you for Patrick.</h1><p>${view.drinkCredits} / 8 credits to the next one.</p></div>
           <div class="qr" aria-label="Rewards Card QR">CARD<br>QR</div>
         </div>
-        <div class="wallet"><div class="eyebrow">Reward Wallet</div>${reward ? `<div class="reward"><div><strong>${esc(reward.kind)}</strong><br><small>No expiration · welcome gift</small></div><button class="secondary" type="button" disabled>Use reward</button></div>` : '<p>No rewards in the wallet yet.</p>'}</div>
+        <div class="wallet"><div class="eyebrow">Reward Wallet</div>${reward ? `<div class="reward"><div><strong>${esc(reward.kind)}</strong><br><small>No expiration · available now</small></div><button class="secondary" type="button" data-reveal-reward data-reward-id="${esc(reward.id)}">Use reward</button></div>${revealedReward ? `<div class="qr-card"><img class="qr-image" src="${revealedReward.qrDataUrl}" alt="Reward QR for one free drink"><div><strong>Show this to Staff.</strong><br><small>Expires ${new Date(revealedReward.expiresAt).toLocaleTimeString()}.</small><br><small>Single-use reward QR</small></div></div>` : ''}` : '<p>No rewards in the wallet yet.</p>'}</div>
         <div><div class="eyebrow" style="margin-top:22px">Progress to your next free drink</div><div>${creditsMarkup(view)}</div><p style="color:var(--muted)">${view.creditsToNextReward} credits remaining</p></div>
         <div class="action"><button type="button" disabled>Show my card</button><button class="secondary" type="button" disabled>View activity</button><button class="secondary" type="button" data-mode="staff">Staff view</button></div>
+        <p class="message" role="status">${esc(message)}</p>
         <div class="activity"><div class="eyebrow">Recent activity · ${view.lifetimeDrinkCredits} lifetime credits</div>${view.recentActivity.map(item => `<p>${esc(item.label)} · ${esc(item.actor)}</p>`).join('')}</div>`;
     }
 
@@ -73,8 +85,11 @@
         <div class="mast"><strong>BEND &amp; BREW</strong><span>STAFF</span></div>
         <div class="status"><div><div class="eyebrow">Staff view</div><h2>Record Patrick's paid drink.</h2><p>Confirm the purchase, then add one Drink Credit.</p></div><div class="qr" aria-label="Staff scan placeholder">SCAN<br>QR</div></div>
         <div class="staff-panel"><div class="eyebrow">Selected Member</div><p><strong>${esc(view.member.name)}</strong><br><span style="color:var(--muted)">${view.drinkCredits} Drink Credits · ${view.availableRewards.length} Free Drink Reward</span></p>
-          <label class="eyebrow" for="access-code">Staff Access Code</label><input id="access-code" type="password" autocomplete="off" placeholder="Enter shared code">
-          <div class="action"><button type="button" data-record ${isRecording ? 'disabled' : ''}>${isRecording ? 'Saving…' : 'Confirm paid drink'}</button><button class="secondary" type="button" data-mode="member">Back to card</button></div>
+          <label class="eyebrow" for="access-code">Staff Access Code</label><input id="access-code" type="password" autocomplete="off" value="${esc(staffAccessCode)}" placeholder="Enter shared code">
+          <label class="eyebrow" for="reward-token" style="display:block;margin-top:18px">Reward QR token or scanned value</label><input id="reward-token" type="text" autocomplete="off" value="${esc(staffToken)}" placeholder="Scan or paste the Reward QR value">
+          <div class="action"><button type="button" data-record ${isRecording ? 'disabled' : ''}>${isRecording ? 'Saving…' : 'Record paid drink'}</button><button type="button" data-preview>Preview Redemption</button><button class="secondary" type="button" data-camera>Scan with camera</button><button class="secondary" type="button" data-mode="member">Back to card</button></div>
+          <video id="scanner" class="scanner" playsinline hidden></video>
+          ${staffPreview ? `<div class="reward" style="margin-top:18px"><div><strong>Redeem one free drink for ${esc(staffPreview.member.name)}?</strong><br><small>${esc(staffPreview.reward.kind)} · expires ${new Date(staffPreview.expiresAt).toLocaleTimeString()}</small></div><button type="button" data-confirm ${isConfirming ? 'disabled' : ''}>${isConfirming ? 'Confirming…' : 'Confirm Redemption'}</button></div>` : ''}
           <p class="message" role="status">${esc(message)}</p>
         </div>
         <div class="activity"><div class="eyebrow">Recent activity · ${view.lifetimeDrinkCredits} lifetime credits</div>${view.recentActivity.map(item => `<p>${esc(item.label)} · ${esc(item.actor)}</p>`).join('')}</div>`;
@@ -83,14 +98,115 @@
     function render(view) {
       currentView = view;
       app.innerHTML = mode === 'member' ? memberMarkup(view) : staffMarkup(view);
-      document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => { mode = button.dataset.mode; message = ''; render(currentView); }));
-      const recordButton = document.querySelector('[data-record]');
-      if (recordButton) recordButton.addEventListener('click', recordPaidDrink);
+      document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => { stopScanner(); mode = button.dataset.mode; message = ''; render(currentView); }));
+      document.querySelector('[data-reveal-reward]')?.addEventListener('click', revealReward);
+      document.querySelector('[data-record]')?.addEventListener('click', recordPaidDrink);
+      document.querySelector('[data-preview]')?.addEventListener('click', previewRedemption);
+      document.querySelector('[data-confirm]')?.addEventListener('click', confirmRedemption);
+      document.querySelector('[data-camera]')?.addEventListener('click', scanWithCamera);
+    }
+
+    async function revealReward() {
+      const rewardId = document.querySelector('[data-reveal-reward]').dataset.rewardId;
+      try {
+        const response = await fetch('/api/rewards/reveal', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ memberId:'patrick', rewardId }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The reward could not be revealed.');
+        revealedReward = result;
+        message = 'Reward QR ready. Show it to Staff.';
+        render(currentView);
+      } catch (error) { message = error.message; render(currentView); }
+    }
+
+    async function previewRedemption() {
+      const accessCode = document.querySelector('#access-code').value;
+      const token = document.querySelector('#reward-token').value.trim();
+      staffAccessCode = accessCode;
+      staffToken = token;
+      try {
+        const response = await fetch('/api/staff/redemptions/preview', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ accessCode, token }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The Reward QR could not be previewed.');
+        staffPreview = result;
+        message = 'Review the Redemption, then confirm it.';
+        render(currentView);
+      } catch (error) { message = error.message; render(currentView); }
+    }
+
+    async function confirmRedemption() {
+      if (isConfirming) return;
+      const accessCode = document.querySelector('#access-code').value;
+      const token = document.querySelector('#reward-token').value.trim();
+      staffAccessCode = accessCode;
+      staffToken = token;
+      redemptionRequestId ??= crypto.randomUUID();
+      isConfirming = true;
+      message = 'Confirming the Redemptionâ€¦';
+      render(currentView);
+      try {
+        const response = await fetch('/api/staff/redemptions', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ accessCode, token, requestId:redemptionRequestId }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The Redemption could not be completed.');
+        currentView = result;
+        staffPreview = null;
+        staffToken = '';
+        redemptionRequestId = undefined;
+        revealedReward = null;
+        message = 'Redemption confirmed. The reward is no longer available.';
+      } catch (error) { message = error.message; }
+      finally { isConfirming = false; render(currentView); }
+    }
+
+    async function scanWithCamera() {
+      staffAccessCode = document.querySelector('#access-code').value;
+      if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
+        message = 'Camera scanning is unavailable here. Paste the Reward QR value manually.';
+        render(currentView);
+        return;
+      }
+      const video = document.querySelector('#scanner');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+        cameraStream = stream;
+        scanActive = true;
+        video.srcObject = stream;
+        video.hidden = false;
+        await video.play();
+        const detector = new BarcodeDetector({ formats:['qr_code'] });
+        const scan = async () => {
+          if (!scanActive || video.hidden) return;
+          try {
+            const codes = await detector.detect(video);
+            if (codes[0]?.rawValue) {
+              staffToken = codes[0].rawValue;
+              stopScanner();
+              message = 'Reward QR captured. Preview the Redemption.';
+              render(currentView);
+              return;
+            }
+            requestAnimationFrame(scan);
+          } catch {
+            stopScanner();
+            message = 'Camera scanning failed. Paste the Reward QR value manually.';
+            render(currentView);
+          }
+        };
+        requestAnimationFrame(scan);
+      } catch { stopScanner(); message = 'Camera access failed. Paste the Reward QR value manually.'; render(currentView); }
+    }
+
+    function stopScanner() {
+      scanActive = false;
+      cameraStream?.getTracks().forEach(track => track.stop());
+      cameraStream = undefined;
+      const video = document.querySelector('#scanner');
+      if (video) { video.hidden = true; video.srcObject = null; }
     }
 
     async function recordPaidDrink() {
       if (isRecording) return;
       const accessCode = document.querySelector('#access-code').value;
+      staffAccessCode = accessCode;
       isRecording = true;
       message = 'Saving the purchase…';
       render(currentView);
