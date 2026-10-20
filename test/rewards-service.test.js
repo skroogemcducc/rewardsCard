@@ -59,3 +59,56 @@ test('Staff cannot record a drink with the wrong Access Code', () => {
     requestId: 'purchase-002'
   }), /Invalid Staff Access Code/);
 });
+
+test('the eighth Drink Credit creates one Free Drink Reward and resets current progress', () => {
+  const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
+
+  service.recordQualifyingDrink({
+    memberId: 'patrick',
+    accessCode: 'espresso',
+    requestId: 'milestone-001',
+    drinkCount: 8
+  });
+
+  const view = service.getMemberView('patrick');
+  assert.equal(view.drinkCredits, 0);
+  assert.equal(view.creditsToNextReward, 8);
+  assert.equal(view.lifetimeDrinkCredits, 8);
+  assert.equal(view.availableRewards.length, 2);
+  assert.equal(view.recentActivity.filter(item => item.type === 'Drink Credit').length, 8);
+  assert.equal(view.recentActivity[0].label, 'Earned free drink reward');
+});
+
+test('credits beyond a milestone roll toward the next reward and rewards stack', () => {
+  const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
+
+  service.recordQualifyingDrink({
+    memberId: 'patrick',
+    accessCode: 'espresso',
+    requestId: 'rollover-001',
+    drinkCount: 18
+  });
+
+  const view = service.getMemberView('patrick');
+  assert.equal(view.drinkCredits, 2);
+  assert.equal(view.creditsToNextReward, 6);
+  assert.equal(view.lifetimeDrinkCredits, 18);
+  assert.equal(view.availableRewards.length, 3);
+  assert.equal(view.recentActivity.filter(item => item.label === 'Earned free drink reward').length, 2);
+});
+
+test('a request ID cannot silently discard another Member\'s purchase', () => {
+  const service = createRewardsService({
+    database: ':memory:',
+    staffAccessCode: 'espresso',
+    additionalMembers: [{ id: 'another-member', name: 'Another Member' }]
+  });
+
+  service.recordQualifyingDrink({ memberId: 'patrick', accessCode: 'espresso', requestId: 'shared-request' });
+
+  assert.throws(() => service.recordQualifyingDrink({
+    memberId: 'another-member',
+    accessCode: 'espresso',
+    requestId: 'shared-request'
+  }), /Request ID already belongs to another Member/);
+});
