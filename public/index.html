@@ -54,7 +54,6 @@
     const isStaff = location.pathname === '/staff';
     const esc = value => String(value).replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
     let currentView;
-    let accessCode = '';
     let scannerStream;
     let scanActive = false;
     let scanBusy = false;
@@ -77,11 +76,10 @@
     function staffMarkup(view) {
       return `<div class="mast"><strong>BEND &amp; BREW</strong><span>STAFF SCANNER</span></div>
         <div class="panel"><div class="eyebrow">Scan to add one drink</div><h2>Point at Patrick's QR.</h2><p class="small">The scan will beep and add one Drink Credit immediately.</p>
-        <label for="access-code" class="eyebrow">Staff Access Code</label><input id="access-code" type="password" autocomplete="off" value="${esc(accessCode)}" placeholder="Enter shared code">
         <video id="scanner" class="scanner" playsinline hidden></video><canvas id="scanner-canvas" hidden></canvas>
         <div class="actions"><button type="button" data-start>Start scanner</button><button class="secondary" type="button" data-manual>Use manual fallback</button></div>
         <div class="manual" hidden><label for="card-token" class="eyebrow">Card QR value</label><input id="card-token" type="text" placeholder="Paste the QR value"><button type="button" data-submit-manual style="margin-top:12px">Add drink</button></div>
-        <div id="status" class="status" role="status">Enter the Staff code, then tap Start scanner.</div>
+        <div id="status" class="status" role="status">Tap Start scanner to allow camera access.</div>
         <div class="tally center"><div class="eyebrow">Patrick's tally</div><h1>${view.lifetimeDrinkCredits}</h1><p>${view.drinkCredits} of 8 toward the next free drink</p></div>
         <a class="staff-link" href="/">Patrick's card</a></div>`;
     }
@@ -120,8 +118,6 @@
     async function recordScan(cardToken) {
       if (scanBusy) return;
       if (!cardToken) { setStatus('No QR value found. Try the camera again or use manual fallback.', 'error'); return; }
-      const code = document.querySelector('#access-code').value;
-      accessCode = code;
       pendingCardToken ??= cardToken;
       if (pendingCardToken !== cardToken) { pendingCardToken = cardToken; scanRequestId = undefined; }
       scanRequestId ??= crypto.randomUUID();
@@ -129,7 +125,7 @@
       stopScanner();
       setStatus('Saving the drink…');
       try {
-        const response = await fetch('/api/staff/scan', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ accessCode:code, cardToken, requestId:scanRequestId }) });
+        const response = await fetch('/api/staff/scan', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ cardToken, requestId:scanRequestId }) });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'The scan could not be recorded.');
         currentView = result;
@@ -144,8 +140,6 @@
 
     async function startScanner() {
       if (scanActive) return;
-      const code = document.querySelector('#access-code').value.trim();
-      if (!code) { setStatus('Enter the Staff Access Code before starting the scanner.', 'error'); return; }
       if (!navigator.mediaDevices?.getUserMedia || !window.jsQR) { setStatus('Camera scanning is unavailable. Use manual fallback.', 'error'); return; }
       const video = document.querySelector('#scanner');
       const canvas = document.querySelector('#scanner-canvas');
@@ -154,7 +148,12 @@
         setStatus('Requesting camera permission…');
         audioContext ??= new (window.AudioContext || window.webkitAudioContext)();
         await audioContext.resume();
-        scannerStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+        try {
+          scannerStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } }, audio:false });
+        } catch (error) {
+          if (error?.name !== 'TypeError' && error?.name !== 'OverconstrainedError') throw error;
+          scannerStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:false });
+        }
         scanActive = true;
         video.srcObject = scannerStream;
         video.hidden = false;

@@ -174,13 +174,12 @@ export function createRewardsService({ database = ':memory:', staffAccessCode = 
       return db.prepare('SELECT token_value FROM member_qr_tokens WHERE member_id = ?').get(memberId).token_value;
     },
 
-    recordMemberScan({ accessCode, cardToken, requestId }) {
-      if (accessCode !== staffAccessCode) throw new Error('Invalid Staff Access Code');
+    recordMemberScan({ cardToken, requestId }) {
       const member = db.prepare(`
         SELECT member_id FROM member_qr_tokens WHERE token_value = ?
       `).get(cardToken);
       if (!member) throw new Error('Invalid Rewards Card QR');
-      return api.recordQualifyingDrink({ memberId: member.member_id, accessCode, requestId });
+      return api.recordQualifyingDrink({ memberId: member.member_id, accessCode: staffAccessCode, requestId });
     },
 
     recordQualifyingDrink({ memberId, accessCode, requestId, drinkCount = 1 }) {

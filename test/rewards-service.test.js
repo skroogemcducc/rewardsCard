@@ -173,7 +173,6 @@ test('Staff can scan Patrick\'s permanent card QR to add one drink', () => {
   const cardToken = service.getMemberCardToken('patrick');
 
   const scanned = service.recordMemberScan({
-    accessCode: 'espresso',
     cardToken,
     requestId: 'scan-001'
   });
@@ -181,7 +180,6 @@ test('Staff can scan Patrick\'s permanent card QR to add one drink', () => {
   assert.equal(scanned.lifetimeDrinkCredits, 1);
   assert.equal(scanned.drinkCredits, 1);
   assert.deepEqual(service.recordMemberScan({
-    accessCode: 'espresso',
     cardToken,
     requestId: 'scan-001'
   }), scanned);
@@ -191,7 +189,6 @@ test('an unknown card QR cannot add a drink', () => {
   const service = createRewardsService({ database: ':memory:', staffAccessCode: 'espresso' });
 
   assert.throws(() => service.recordMemberScan({
-    accessCode: 'espresso',
     cardToken: 'not-a-member-card',
     requestId: 'scan-002'
   }), /Invalid Rewards Card QR/);

@@ -37,8 +37,8 @@ const server = createServer(async (request, response) => {
 
   if (request.method === 'POST' && request.url === '/api/staff/scan') {
     try {
-      const { accessCode, cardToken, requestId } = await readJson(request);
-      return sendJson(response, 200, service.recordMemberScan({ accessCode, cardToken, requestId }));
+      const { cardToken, requestId } = await readJson(request);
+      return sendJson(response, 200, service.recordMemberScan({ cardToken, requestId }));
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
     }

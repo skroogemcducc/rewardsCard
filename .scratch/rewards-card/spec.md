@@ -8,7 +8,7 @@ Patrick Kearns is Bend & Brew Coffee Co.'s first Member and deserves a personal,
 
 ## Simplified v1 interaction
 
-The everyday experience is intentionally reduced to one permanent Member QR and one drink tally. Patrick's home screen shows his QR and current total. Staff open `/staff`, enter the shared Staff Access Code, and start the scanner. A successful scan records one Drink Credit, plays an audible beep, and shows an updated success alert on the Staff screen; Patrick's screen refreshes automatically. The service ledger and duplicate protection remain authoritative behind this simple flow. Reward redemption and correction operations remain available as secondary service capabilities but are not part of the primary scan interaction.
+The everyday experience is intentionally reduced to one permanent Member QR and one drink tally. Patrick's home screen shows his QR and current total. Staff open `/staff` and tap Start scanner. A successful scan records one Drink Credit, plays an audible beep, and shows an updated success alert on the Staff screen; Patrick's screen refreshes automatically. The service ledger and duplicate protection remain authoritative behind this simple flow. Reward redemption and correction operations remain available as secondary service capabilities but are not part of the primary scan interaction.
 
 ## Solution
 
@@ -43,7 +43,7 @@ The server and hosted relational database own the authoritative state. An append
 23. As a Staff Member, I want a confirmed Redemption to remove exactly one Free Drink Reward from the Reward Wallet, so that stacked rewards remain independent.
 24. As a Staff Member, I want the drink received through Redemption not to earn a Drink Credit, so that the reward rule cannot accidentally compound itself.
 25. As a Staff Member, I want to use a manual fallback when camera scanning fails, so that a camera permission or hardware problem does not stop service.
-26. As a Staff Member, I want to use one shared Staff Access Code, so that Jesse and Becky can operate the first version without separate account administration.
+26. As a Staff Member, I want to open the scanner immediately, so that Jesse and Becky can record a drink quickly during service.
 27. As a Staff Member, I want history to identify actions as performed by Staff, so that the system is honest about the available audit detail.
 28. As a Staff Member, I want to make a labeled Credit Adjustment, so that mistakes can be corrected without deleting original activity.
 29. As a Staff Member, I want every adjustment to explain what it corrected, so that the resulting balance remains understandable.
@@ -68,7 +68,7 @@ The server and hosted relational database own the authoritative state. An append
 - Patrick's permanent Rewards Card QR is distinct from a single-use Reward QR.
 - For the simplified v1 primary workflow, Patrick's permanent Rewards Card QR is the only QR shown in the customer and Staff surfaces; Reward QR redemption remains a secondary service capability until deliberately brought back into the main experience.
 - A Reward QR is generated only after Patrick chooses an available reward, is valid for five minutes, and cannot itself complete a Redemption. Staff confirmation is required.
-- Staff actions use one shared Staff Access Code in version one and are attributed as Staff rather than falsely distinguishing Jesse from Becky.
+- Primary Staff scanning is immediately available and actions are attributed as Staff rather than falsely distinguishing Jesse from Becky.
 - Staff can add credits and redeem rewards through scanning or a manual record lookup fallback.
 - Mutating actions must be safe against duplicate submissions and must return enough updated state for the interface to show the result immediately.
 - Notifications are optional side effects. Their failure must not roll back or invalidate rewards accounting.
@@ -95,7 +95,7 @@ The server and hosted relational database own the authoritative state. An append
 - Native iOS or Android applications
 - Offline operation or background synchronization
 - Marketing campaigns, referrals, coupons, or generalized promotions
-- Separate staff identities and permissions beyond the shared Staff Access Code
+- Separate staff identities and permissions beyond the primary scanner flow
 - SMS as a required accounting or authentication dependency
 - A multi-location or franchise administration system
 
