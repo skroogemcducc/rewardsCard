@@ -3,6 +3,12 @@
   "name": "bend-and-brew-rewards",
   "main": "./src/worker.js",
   "compatibility_date": "2026-10-23",
+  "routes": [
+    {
+      "pattern": "rewards.bendandbrewcoffeeco.com",
+      "custom_domain": true
+    }
+  ],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
