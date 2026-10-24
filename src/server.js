@@ -87,6 +87,12 @@ export async function createRewardsServer(options = {}) {
         return response.end(page);
       }
 
+      if (request.method === 'GET' && request.url === '/member-view.js') {
+        const module = await readFile(join(publicRoot, 'member-view.js'));
+        response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+        return response.end(module);
+      }
+
       response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       response.end('Not found');
     } catch (error) {

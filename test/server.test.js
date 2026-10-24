@@ -30,6 +30,17 @@ test('production server refuses to start without persistent database credentials
   await assert.rejects(createRewardsServer({ production: true }), /TURSO_DATABASE_URL/);
 });
 
+test('Patrick\'s browser can load the member view module', async t => {
+  const app = await startTestServer();
+  t.after(() => app.close());
+
+  const response = await fetch(`${app.baseUrl}/member-view.js`);
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /javascript/);
+  assert.match(await response.text(), /memberMarkup/);
+});
+
 test('Staff PIN is required before a scanned card can add a Drink Credit', async t => {
   const app = await startTestServer();
   t.after(() => app.close());

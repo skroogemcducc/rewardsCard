@@ -20,8 +20,19 @@
     h2 { margin:14px 0 0; font:700 38px/.95 Georgia, serif; letter-spacing:-.05em; }
     .center { text-align:center; }
     .card-qr { width:min(76vw,280px); margin:28px auto 20px; display:block; border:12px solid #fff; background:#fff; }
+    .member-hello { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:22px 0; }
+    .member-hello h2 { margin-top:6px; }
+    .mini-card-qr { width:82px; height:82px; padding:6px; background:#fff; border:2px solid currentColor; }
+    .tabs { display:grid; grid-template-columns:1fr 1fr; border:2px solid currentColor; margin-bottom:24px; }
+    .tab { background:transparent; color:inherit; border-radius:0; padding:13px 8px; }
+    .tab + .tab { border-left:2px solid currentColor; }
+    .tab.active { background:var(--ink); color:var(--cream); }
+    .tab-count { display:inline-grid; place-items:center; min-width:22px; height:22px; margin-left:4px; padding:0 5px; border-radius:50%; background:var(--rust); color:#fff; }
+    .tab-panel { min-height:360px; }
     .tally { padding:28px 0 20px; border-top:2px dashed currentColor; border-bottom:2px dashed currentColor; }
+    .lifetime { border-top:0; padding-top:10px; }
     .tally p { margin:8px 0 0; color:var(--muted); }
+    .next-reward { padding:28px 0 10px; }
     .progress { display:flex; gap:7px; justify-content:center; margin-top:20px; }
     .progress span { width:24px; height:24px; border:2px solid currentColor; border-radius:50%; display:grid; place-items:center; font-size:12px; }
     .progress span.filled { background:#e3a43b; }
@@ -40,6 +51,22 @@
     .small { color:var(--muted); font-size:12px; }
     .history { margin-top:24px; padding-top:18px; border-top:2px dashed currentColor; }
     .history p { color:var(--muted); margin:8px 0; }
+    .coffee-joke { display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:center; margin-top:24px; padding:18px; background:#ead6b7; transform:rotate(-.5deg); }
+    .coffee-joke > span { font-size:34px; }
+    .coffee-joke p { margin:4px 0 0; font:700 18px/1.25 Georgia,serif; }
+    .joke-button { grid-column:1/-1; justify-self:start; padding:8px 10px; background:transparent; color:inherit; border:1px solid currentColor; font-size:11px; }
+    .wallet-intro { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:20px; }
+    .reward-stamp { display:grid; place-items:center; width:74px; height:74px; border:4px double var(--rust); border-radius:50%; color:var(--rust); font-weight:900; transform:rotate(8deg); }
+    .reward-list { display:grid; gap:12px; }
+    .reward-card { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px; border:2px dashed currentColor; background:#fff8ea; }
+    .reward-card strong { display:block; margin-top:4px; font:700 21px Georgia,serif; }
+    .reward-card p { margin:5px 0 0; color:var(--muted); font-size:12px; }
+    .reward-card button { flex:0 0 auto; }
+    .reward-open { padding-top:12px; }
+    .reward-qr { display:block; width:min(72vw,260px); margin:24px auto 18px; padding:10px; border:2px solid currentColor; background:#fff; }
+    .reward-timer { max-width:390px; margin:0 auto 20px; color:var(--muted); }
+    .empty-wallet { padding:46px 14px; }
+    .empty-cup { font-size:52px; }
     @media (max-width:520px) { body { padding:16px 10px 36px; }.ticket { padding:26px 18px; } }
   </style>
 </head>
@@ -49,7 +76,9 @@
     <section id="app" class="ticket" aria-live="polite">Loading…</section>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" crossorigin="anonymous"></script>
-  <script>
+  <script type="module">
+    import { memberMarkup, coffeeJokes } from '/member-view.js';
+
     const app = document.querySelector('#app');
     const isStaff = location.pathname === '/staff';
     const esc = value => String(value).replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
@@ -62,18 +91,9 @@
     let pendingCardToken;
     let audioContext;
     let staffAccessCode = sessionStorage.getItem('staffAccessCode') ?? '';
-
-    function progressMarkup(view) {
-      return Array.from({ length:8 }, (_, index) => `<span class="${index < view.drinkCredits ? 'filled' : ''}">${index < view.drinkCredits ? '✓' : index + 1}</span>`).join('');
-    }
-
-    function memberMarkup(view) {
-      return `<div class="mast"><strong>BEND &amp; BREW</strong><span>PATRICK'S CARD</span></div>
-        <div class="center"><img class="card-qr" src="${view.cardQrDataUrl}" alt="Patrick's permanent Rewards Card QR"></div>
-        <div class="tally center"><div class="eyebrow">Drinks recorded</div><h1>${view.lifetimeDrinkCredits}</h1><p>${view.creditsToNextReward} more until the next free drink</p><div class="progress" aria-label="${view.drinkCredits} of 8 credits toward the next free drink">${progressMarkup(view)}</div></div>
-        <div class="history"><div class="eyebrow">Latest activity</div>${view.recentActivity.slice(0,3).map(item => `<p>${esc(item.label)} · ${esc(item.actor)}</p>`).join('')}</div>
-        <a class="staff-link" href="/staff">Staff scanner</a>`;
-    }
+    let activeMemberTab = 'tally';
+    let jokeIndex = 0;
+    let revealedReward;
 
     function staffMarkup(view) {
       return `<div class="mast"><strong>BEND &amp; BREW</strong><span>STAFF SCANNER</span></div>
@@ -88,7 +108,8 @@
 
     function render(view) {
       currentView = view;
-      app.innerHTML = isStaff ? staffMarkup(view) : memberMarkup(view);
+      if (revealedReward && !view.availableRewards.some(reward => reward.id === revealedReward.rewardId)) revealedReward = undefined;
+      app.innerHTML = isStaff ? staffMarkup(view) : memberMarkup(view, { activeTab:activeMemberTab, jokeIndex, revealedReward });
       if (isStaff) {
         document.querySelector('#staff-pin').addEventListener('input', event => {
           staffAccessCode = event.target.value.trim();
@@ -96,6 +117,36 @@
         });
         document.querySelector('[data-start]').addEventListener('click', startScanner);
         document.querySelector('[data-manual]').addEventListener('click', recordManualCredit);
+      } else {
+        document.querySelectorAll('[data-tab]').forEach(button => button.addEventListener('click', () => {
+          activeMemberTab = button.dataset.tab;
+          revealedReward = undefined;
+          render(currentView);
+        }));
+        document.querySelector('[data-new-joke]')?.addEventListener('click', () => {
+          jokeIndex = (jokeIndex + 1) % coffeeJokes.length;
+          render(currentView);
+        });
+        document.querySelectorAll('[data-reward-id]').forEach(button => button.addEventListener('click', () => revealReward(button.dataset.rewardId, button)));
+        document.querySelector('[data-close-reward]')?.addEventListener('click', () => { revealedReward = undefined; render(currentView); });
+      }
+    }
+
+    async function revealReward(rewardId, button) {
+      button.disabled = true;
+      button.textContent = 'Opening…';
+      try {
+        const response = await fetch('/api/rewards/reveal', {
+          method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ rewardId })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The reward could not be opened.');
+        revealedReward = result;
+        render(currentView);
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = 'Open reward';
+        alert(error.message);
       }
     }
 
@@ -230,7 +281,9 @@
     }
 
     loadMember().then(view => { render(view); }).catch(error => { app.innerHTML = `<div class="status error">${esc(error.message)}</div>`; });
-    if (!isStaff) setInterval(() => loadMember().then(view => render(view)).catch(() => {}), 2500);
+    if (!isStaff) setInterval(() => loadMember().then(view => {
+      if (JSON.stringify(view) !== JSON.stringify(currentView)) render(view);
+    }).catch(() => {}), 2500);
   </script>
 </body>
 </html>
