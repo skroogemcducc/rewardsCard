@@ -58,8 +58,10 @@
     let scanActive = false;
     let scanBusy = false;
     let scanRequestId;
+    let manualRequestId;
     let pendingCardToken;
     let audioContext;
+    let staffAccessCode = sessionStorage.getItem('staffAccessCode') ?? '';
 
     function progressMarkup(view) {
       return Array.from({ length:8 }, (_, index) => `<span class="${index < view.drinkCredits ? 'filled' : ''}">${index < view.drinkCredits ? '✓' : index + 1}</span>`).join('');
@@ -76,9 +78,9 @@
     function staffMarkup(view) {
       return `<div class="mast"><strong>BEND &amp; BREW</strong><span>STAFF SCANNER</span></div>
         <div class="panel"><div class="eyebrow">Scan to add one drink</div><h2>Point at Patrick's QR.</h2><p class="small">The scan will beep and add one Drink Credit immediately.</p>
+        <label for="staff-pin" class="eyebrow">Staff PIN</label><input id="staff-pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="Enter Staff PIN" value="${esc(staffAccessCode)}">
         <video id="scanner" class="scanner" playsinline hidden></video><canvas id="scanner-canvas" hidden></canvas>
-        <div class="actions"><button type="button" data-start>Start scanner</button><button class="secondary" type="button" data-manual>Use manual fallback</button></div>
-        <div class="manual" hidden><label for="card-token" class="eyebrow">Card QR value</label><input id="card-token" type="text" placeholder="Paste the QR value"><button type="button" data-submit-manual style="margin-top:12px">Add drink</button></div>
+        <div class="actions"><button type="button" data-start>Start scanner</button><button class="secondary" type="button" data-manual>Add Patrick's drink manually</button></div>
         <div id="status" class="status" role="status">Tap Start scanner to allow camera access.</div>
         <div class="tally center"><div class="eyebrow">Patrick's tally</div><h1>${view.lifetimeDrinkCredits}</h1><p>${view.drinkCredits} of 8 toward the next free drink</p></div>
         <a class="staff-link" href="/">Patrick's card</a></div>`;
@@ -88,9 +90,12 @@
       currentView = view;
       app.innerHTML = isStaff ? staffMarkup(view) : memberMarkup(view);
       if (isStaff) {
+        document.querySelector('#staff-pin').addEventListener('input', event => {
+          staffAccessCode = event.target.value.trim();
+          sessionStorage.setItem('staffAccessCode', staffAccessCode);
+        });
         document.querySelector('[data-start]').addEventListener('click', startScanner);
-        document.querySelector('[data-manual]').addEventListener('click', () => { document.querySelector('.manual').hidden = false; setStatus('Paste the QR value from Patrick\'s screen.', ''); });
-        document.querySelector('[data-submit-manual]').addEventListener('click', () => recordScan(document.querySelector('#card-token').value.trim()));
+        document.querySelector('[data-manual]').addEventListener('click', recordManualCredit);
       }
     }
 
@@ -117,6 +122,7 @@
 
     async function recordScan(cardToken) {
       if (scanBusy) return;
+      if (!staffAccessCode) { setStatus('Enter the Staff PIN before adding a drink.', 'error'); document.querySelector('#staff-pin')?.focus(); return; }
       if (!cardToken) { setStatus('No QR value found. Try the camera again or use manual fallback.', 'error'); return; }
       pendingCardToken ??= cardToken;
       if (pendingCardToken !== cardToken) { pendingCardToken = cardToken; scanRequestId = undefined; }
@@ -125,9 +131,17 @@
       stopScanner();
       setStatus('Saving the drink…');
       try {
-        const response = await fetch('/api/staff/scan', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ cardToken, requestId:scanRequestId }) });
+        const response = await fetch('/api/staff/scan', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ cardToken, accessCode:staffAccessCode, requestId:scanRequestId }) });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'The scan could not be recorded.');
+        if (!response.ok) {
+          if (response.status === 401) {
+            staffAccessCode = '';
+            sessionStorage.removeItem('staffAccessCode');
+            const pin = document.querySelector('#staff-pin');
+            if (pin) { pin.value = ''; pin.focus(); }
+          }
+          throw new Error(result.error || 'The scan could not be recorded.');
+        }
         currentView = result;
         render(currentView);
         playBeep();
@@ -138,8 +152,32 @@
       finally { scanBusy = false; }
     }
 
+    async function recordManualCredit() {
+      if (scanBusy) return;
+      if (!staffAccessCode) { setStatus('Enter the Staff PIN before adding a drink.', 'error'); document.querySelector('#staff-pin')?.focus(); return; }
+      scanBusy = true;
+      manualRequestId ??= crypto.randomUUID();
+      setStatus('Saving Patrick\'s drink…');
+      try {
+        const response = await fetch('/api/staff/credits', {
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body:JSON.stringify({ memberId:'patrick', accessCode:staffAccessCode, requestId:manualRequestId })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'The drink could not be recorded.');
+        currentView = result;
+        render(currentView);
+        playBeep();
+        setStatus(`Drink added for ${result.member.name}. Tally: ${result.lifetimeDrinkCredits}.`, 'success');
+        manualRequestId = undefined;
+      } catch (error) { setStatus(error.message, 'error'); }
+      finally { scanBusy = false; }
+    }
+
     async function startScanner() {
       if (scanActive) return;
+      if (!staffAccessCode) { setStatus('Enter the Staff PIN before starting the scanner.', 'error'); document.querySelector('#staff-pin')?.focus(); return; }
       if (!navigator.mediaDevices?.getUserMedia || !window.jsQR) { setStatus('Camera scanning is unavailable. Use manual fallback.', 'error'); return; }
       const video = document.querySelector('#scanner');
       const canvas = document.querySelector('#scanner-canvas');
